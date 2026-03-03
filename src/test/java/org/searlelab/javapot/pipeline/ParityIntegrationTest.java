@@ -134,7 +134,7 @@ class ParityIntegrationTest {
 			String[] cols = header.split("\\t");
 			int qIdx = -1;
 			for (int i = 0; i < cols.length; i++) {
-				if (cols[i].equals("mokapot_qvalue") || cols[i].equals("mokapot q-value")) {
+				if (cols[i].equals("q-value") || cols[i].equals("mokapot_qvalue") || cols[i].equals("mokapot q-value")) {
 					qIdx = i;
 					break;
 				}
@@ -169,7 +169,7 @@ class ParityIntegrationTest {
 			int qIdx = -1;
 			int pepIdx = -1;
 			for (int i = 0; i < cols.length; i++) {
-				if (cols[i].equals("mokapot_qvalue") || cols[i].equals("mokapot q-value")) {
+				if (cols[i].equals("q-value") || cols[i].equals("mokapot_qvalue") || cols[i].equals("mokapot q-value")) {
 					qIdx = i;
 				} else if (cols[i].equalsIgnoreCase("Peptide")) {
 					pepIdx = i;

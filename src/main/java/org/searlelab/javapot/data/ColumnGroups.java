@@ -21,6 +21,9 @@ public final class ColumnGroups {
 	private final List<String> extraConfidenceLevelColumns;
 	private final OptionalColumns optionalColumns;
 
+	/**
+	 * Creates a validated set of column roles for one parsed PIN header.
+	 */
 	public ColumnGroups(
 		List<String> columns,
 		String targetColumn,
@@ -83,6 +86,9 @@ public final class ColumnGroups {
 		}
 	}
 
+	/**
+	 * Infers required and optional PIN column roles from header names.
+	 */
 	public static ColumnGroups inferFromColnames(List<String> columns) {
 		String specid;
 		String first = columns.get(0);
@@ -231,38 +237,65 @@ public final class ColumnGroups {
 		return null;
 	}
 
+	/**
+	 * Returns a copy with updated model feature columns.
+	 */
 	public ColumnGroups withFeatureColumns(List<String> newFeatures) {
 		return new ColumnGroups(columns, targetColumn, peptideColumn, spectrumColumns, newFeatures, extraConfidenceLevelColumns, optionalColumns);
 	}
 
+	/**
+	 * Returns all original header columns in input order.
+	 */
 	public List<String> columns() {
 		return columns;
 	}
 
+	/**
+	 * Returns the inferred target/decoy label column name.
+	 */
 	public String targetColumn() {
 		return targetColumn;
 	}
 
+	/**
+	 * Returns the inferred peptide sequence column name.
+	 */
 	public String peptideColumn() {
 		return peptideColumn;
 	}
 
+	/**
+	 * Returns the columns used to define spectrum-level grouping keys.
+	 */
 	public List<String> spectrumColumns() {
 		return spectrumColumns;
 	}
 
+	/**
+	 * Returns the numeric feature columns used for model training.
+	 */
 	public List<String> featureColumns() {
 		return featureColumns;
 	}
 
+	/**
+	 * Returns extra non-feature columns carried into confidence reporting.
+	 */
 	public List<String> extraConfidenceLevelColumns() {
 		return extraConfidenceLevelColumns;
 	}
 
+	/**
+	 * Returns optional metadata columns when present in the PIN file.
+	 */
 	public OptionalColumns optionalColumns() {
 		return optionalColumns;
 	}
 
+	/**
+	 * Returns a readable summary of inferred column assignments.
+	 */
 	@Override
 	public String toString() {
 		return "ColumnGroups{" +
@@ -275,6 +308,9 @@ public final class ColumnGroups {
 			'}';
 	}
 
+	/**
+	 * Removes duplicate column names while preserving first-seen order.
+	 */
 	public static List<String> uniquePreserveOrder(List<String> columns) {
 		return Collections.unmodifiableList(new ArrayList<>(new LinkedHashSet<>(columns)));
 	}

@@ -12,6 +12,9 @@ public final class ClassWeightGridSearch {
 	private ClassWeightGridSearch() {
 	}
 
+	/**
+	 * Selects class weights with deterministic inner cross-validation on labeled rows.
+	 */
 	public static ClassWeightPair select(double[][] x, int[] y01, long seed) {
 		if (x.length != y01.length) {
 			throw new IllegalArgumentException("X/Y mismatch in grid search");

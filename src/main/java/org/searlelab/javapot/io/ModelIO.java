@@ -18,6 +18,9 @@ public final class ModelIO {
 	private ModelIO() {
 	}
 
+	/**
+	 * Serializes fold models to deterministic per-fold filenames in the destination directory.
+	 */
 	public static void saveModels(List<PercolatorFoldModel> models, Path destDir) {
 		for (int i = 0; i < models.size(); i++) {
 			Path out = destDir.resolve("javapot.model_fold-" + (i + 1) + ".bin");
@@ -29,6 +32,9 @@ public final class ModelIO {
 		}
 	}
 
+	/**
+	 * Loads serialized fold models in caller-provided order.
+	 */
 	public static List<PercolatorFoldModel> loadModels(List<Path> paths) {
 		List<PercolatorFoldModel> out = new ArrayList<>();
 		for (Path path : paths) {

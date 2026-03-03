@@ -16,6 +16,9 @@ public final class StableIntSort {
 		int compare(int left, int right);
 	}
 
+	/**
+	 * Returns stable-sorted integer indices [0, size) using the provided comparator.
+	 */
 	public static int[] sortIndices(int size, IntComparator comparator) {
 		if (size < 0) {
 			throw new IllegalArgumentException("size must be >= 0");

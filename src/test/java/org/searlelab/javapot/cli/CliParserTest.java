@@ -17,6 +17,7 @@ class CliParserTest {
 		assertEquals(Path.of("/tmp/test.pin"), cfg.pinFile());
 		assertEquals(Path.of("."), cfg.destDir());
 		assertEquals(3, cfg.maxWorkers());
+		assertEquals(OutputFormat.PERCOLATOR, cfg.outputFormat());
 		assertEquals(0.01, cfg.trainFdr());
 		assertEquals(0.01, cfg.testFdr());
 		assertEquals(10, cfg.maxIter());
@@ -46,6 +47,7 @@ class CliParserTest {
 		assertEquals(2, cfg.loadModels().size());
 		assertEquals(2, cfg.folds());
 		assertEquals(2, cfg.maxWorkers());
+		assertEquals(OutputFormat.PERCOLATOR, cfg.outputFormat());
 	}
 
 	@Test
@@ -53,6 +55,7 @@ class CliParserTest {
 		CliConfig cfg = CliParser.parse(new String[]{"input.pin", "--folds", "7"});
 		assertEquals(7, cfg.folds());
 		assertEquals(7, cfg.maxWorkers());
+		assertEquals(OutputFormat.PERCOLATOR, cfg.outputFormat());
 	}
 
 	@Test
@@ -60,6 +63,7 @@ class CliParserTest {
 		CliConfig cfg = CliParser.parse(new String[]{"input.pin", "--folds", "7", "--max_workers", "2"});
 		assertEquals(7, cfg.folds());
 		assertEquals(2, cfg.maxWorkers());
+		assertEquals(OutputFormat.PERCOLATOR, cfg.outputFormat());
 	}
 
 	@Test
@@ -74,6 +78,7 @@ class CliParserTest {
 			"--seed", "1234",
 			"--direction", "featA",
 			"--subset_max_train", "777",
+			"--output_format", "mokapot",
 			"--save_models",
 			"--folds", "5"
 		});
@@ -86,6 +91,7 @@ class CliParserTest {
 		assertEquals(1234L, cfg.seed());
 		assertEquals("featA", cfg.direction());
 		assertEquals(777, cfg.subsetMaxTrain());
+		assertEquals(OutputFormat.MOKAPOT, cfg.outputFormat());
 		assertTrue(cfg.saveModels());
 		assertEquals(5, cfg.folds());
 	}
@@ -104,6 +110,7 @@ class CliParserTest {
 		assertThrows(IllegalArgumentException.class, () -> CliParser.parse(new String[]{"input.pin", "--seed", "x"}));
 		assertThrows(IllegalArgumentException.class, () -> CliParser.parse(new String[]{"input.pin", "--train_fdr", "x"}));
 		assertThrows(IllegalArgumentException.class, () -> CliParser.parse(new String[]{"input.pin", "--load_models"}));
+		assertThrows(IllegalArgumentException.class, () -> CliParser.parse(new String[]{"input.pin", "--output_format", "foo"}));
 	}
 
 	@Test
@@ -119,6 +126,7 @@ class CliParserTest {
 		String help = baos.toString();
 		assertTrue(help.contains("Usage: javapot"));
 		assertTrue(help.contains("--train_fdr"));
+		assertTrue(help.contains("--output_format"));
 	}
 
 	@Test

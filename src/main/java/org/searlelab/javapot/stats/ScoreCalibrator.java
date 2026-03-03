@@ -10,6 +10,9 @@ public final class ScoreCalibrator {
 	private ScoreCalibrator() {
 	}
 
+	/**
+	 * Rescales fold scores so accepted targets and decoy median align with Percolator conventions.
+	 */
 	public static double[] calibrate(double[] scores, boolean[] targets, double evalFdr) {
 		int[] labels = LabelUpdater.updateLabels(scores, targets, evalFdr, true);
 		double targetScore = Double.POSITIVE_INFINITY;

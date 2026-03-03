@@ -11,6 +11,9 @@ public final class BestFeatureFinder {
 	private BestFeatureFinder() {
 	}
 
+	/**
+	 * Finds the feature and direction that yield the most positives at the evaluation FDR.
+	 */
 	public static BestFeatureResult findBestFeature(PsmDataset dataset, double evalFdr) {
 		String bestName = null;
 		int bestPositives = -1;
@@ -38,6 +41,9 @@ public final class BestFeatureFinder {
 		return new BestFeatureResult(bestName, bestPositives, bestLabels, bestDesc);
 	}
 
+	/**
+	 * Evaluates one feature in both directions and returns the better orientation.
+	 */
 	public static BestFeatureResult findDirectional(PsmDataset dataset, String feature, double evalFdr) {
 		double[] values = dataset.featureColumn(feature);
 		int[] descLabels = LabelUpdater.updateLabels(values, dataset.targets(), evalFdr, true);
@@ -50,6 +56,9 @@ public final class BestFeatureFinder {
 		return new BestFeatureResult(feature, ascPos, ascLabels, false);
 	}
 
+	/**
+	 * Counts positive (+1) labels in a Percolator-style label vector.
+	 */
 	public static int countPositives(int[] labels) {
 		int c = 0;
 		for (int v : labels) {

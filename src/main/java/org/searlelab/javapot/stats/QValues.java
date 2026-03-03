@@ -12,6 +12,9 @@ public final class QValues {
 	private QValues() {
 	}
 
+	/**
+	 * Computes target-decoy-competition q-values for scored rows.
+	 */
 	public static double[] tdc(double[] scoresInput, boolean[] targetsInput, boolean desc) {
 		if (scoresInput.length != targetsInput.length) {
 			throw new IllegalArgumentException("scores and targets must be the same length");

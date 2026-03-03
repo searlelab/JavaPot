@@ -1,12 +1,13 @@
 # JavaPot
 
-JavaPot is a Java clone of the mokapot main code path for Percolator-style semisupervised peptide detection. It focuses on deterministic, high-throughput rescoring of tab-delimited PIN files while maintaining close algorithmic behavior to mokapot/Percolator.
+JavaPot is a Java clone of Dr. Will Fondrie's mokapot main code path for Percolator-style semisupervised peptide detection. It focuses on deterministic, high-throughput rescoring of tab-delimited PIN files while maintaining close algorithmic behavior to mokapot/Percolator.
 
 ## Capabilities
 - Percolator-style semisupervised learning with a linear support vector machine classifier.
 - Single-input-file workflow: one PIN file per run (no XML/PepXML input).
 - Deterministic seeded behavior across fold splitting, training, and model selection.
 - Optional multithreaded fold training via `--max_workers`.
+- Percolator-style output headers by default, with optional mokapot-style output naming via `--output_format mokapot`.
 - Model persistence with `--save_models` and `--load_models`.
 - Confidence output tables written as `targets.psms.tsv` and `targets.peptides.tsv`.
 
@@ -35,6 +36,8 @@ Options:
                         The directory in which to write the result files. Defaults to the current working directory
   -w MAX_WORKERS, --max_workers MAX_WORKERS
                         The number of processes to use for model training. Defaults to --folds when omitted. Note that using more than one worker will result in garbled logging messages.
+  --output_format OUTPUT_FORMAT
+                        Output TSV schema to write: percolator (default) or mokapot.
   --train_fdr TRAIN_FDR
                         The maximum false discovery rate at which to consider a target PSM as a positive example during model training.
   --test_fdr TEST_FDR   The false-discovery rate threshold at which to evaluate the learned models.

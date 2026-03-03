@@ -17,6 +17,9 @@ public final class LinearSvmModel implements Serializable {
 	private final double classWeightNeg;
 	private final double classWeightPos;
 
+	/**
+	 * Creates a serializable linear model from fitted parameters.
+	 */
 	public LinearSvmModel(double[] weights, double bias, double classWeightNeg, double classWeightPos) {
 		this.weights = Arrays.copyOf(weights, weights.length);
 		this.bias = bias;
@@ -24,6 +27,9 @@ public final class LinearSvmModel implements Serializable {
 		this.classWeightPos = classWeightPos;
 	}
 
+	/**
+	 * Fits a weighted linear SVM using Newton updates on squared hinge loss.
+	 */
 	public static LinearSvmModel fit(
 		double[][] x,
 		int[] y,
@@ -107,6 +113,9 @@ public final class LinearSvmModel implements Serializable {
 		return new LinearSvmModel(w, b, classWeightNeg, classWeightPos);
 	}
 
+	/**
+	 * Computes raw signed margins for each row.
+	 */
 	public double[] decisionFunction(double[][] x) {
 		double[] out = new double[x.length];
 		for (int i = 0; i < x.length; i++) {
@@ -115,6 +124,9 @@ public final class LinearSvmModel implements Serializable {
 		return out;
 	}
 
+	/**
+	 * Predicts binary classes from model margins.
+	 */
 	public int[] predictClasses(double[][] x) {
 		double[] scores = decisionFunction(x);
 		int[] out = new int[scores.length];
@@ -124,18 +136,30 @@ public final class LinearSvmModel implements Serializable {
 		return out;
 	}
 
+	/**
+	 * Returns a defensive copy of model weights.
+	 */
 	public double[] weights() {
 		return Arrays.copyOf(weights, weights.length);
 	}
 
+	/**
+	 * Returns the model intercept term.
+	 */
 	public double bias() {
 		return bias;
 	}
 
+	/**
+	 * Returns the negative-class training weight.
+	 */
 	public double classWeightNeg() {
 		return classWeightNeg;
 	}
 
+	/**
+	 * Returns the positive-class training weight.
+	 */
 	public double classWeightPos() {
 		return classWeightPos;
 	}

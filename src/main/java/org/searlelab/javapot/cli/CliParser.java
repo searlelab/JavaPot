@@ -12,9 +12,13 @@ public final class CliParser {
 	private CliParser() {
 	}
 
+	/**
+	 * Parses command-line arguments into a validated runtime configuration.
+	 */
 	public static CliConfig parse(String[] args) {
 		Path destDir = Path.of(".");
 		Integer maxWorkers = null;
+		OutputFormat outputFormat = OutputFormat.PERCOLATOR;
 		double trainFdr = CliConfig.DEFAULT_FDR;
 		double testFdr = CliConfig.DEFAULT_FDR;
 		int maxIter = CliConfig.DEFAULT_MAX_ITER;
@@ -38,6 +42,9 @@ public final class CliParser {
 				}
 				case "-w", "--max_workers" -> {
 					maxWorkers = parseInt(requireValue(args, ++i, arg), arg);
+				}
+				case "--output_format" -> {
+					outputFormat = OutputFormat.parse(requireValue(args, ++i, arg));
 				}
 				case "--train_fdr" -> {
 					trainFdr = parseDouble(requireValue(args, ++i, arg), arg);
@@ -114,6 +121,7 @@ public final class CliParser {
 			pinFile,
 			destDir,
 			resolvedMaxWorkers,
+			outputFormat,
 			trainFdr,
 			testFdr,
 			maxIter,
@@ -126,6 +134,9 @@ public final class CliParser {
 		);
 	}
 
+	/**
+	 * Prints supported CLI options and exits guidance text.
+	 */
 	public static void printHelp() {
 		String help = """
 			Usage: javapot [options] <pin_file>
@@ -134,6 +145,8 @@ public final class CliParser {
 			                        The directory in which to write the result files. Defaults to the current working directory
 			  -w MAX_WORKERS, --max_workers MAX_WORKERS
 			                        The number of processes to use for model training. Defaults to --folds when omitted. Note that using more than one worker will result in garbled logging messages.
+			  --output_format OUTPUT_FORMAT
+			                        Output TSV schema to write: percolator (default) or mokapot.
 			  --train_fdr TRAIN_FDR
 			                        The maximum false discovery rate at which to consider a target PSM as a positive example during model training.
 			  --test_fdr TEST_FDR   The false-discovery rate threshold at which to evaluate the learned models.

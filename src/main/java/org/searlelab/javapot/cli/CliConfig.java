@@ -11,6 +11,7 @@ public record CliConfig(
 	Path pinFile,
 	Path destDir,
 	int maxWorkers,
+	OutputFormat outputFormat,
 	double trainFdr,
 	double testFdr,
 	int maxIter,

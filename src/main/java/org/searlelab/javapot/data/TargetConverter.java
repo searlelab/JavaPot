@@ -8,6 +8,9 @@ public final class TargetConverter {
 	private TargetConverter() {
 	}
 
+	/**
+	 * Converts supported PIN target encodings into a boolean target flag.
+	 */
 	public static boolean toBoolean(String value) {
 		if (value == null) {
 			throw new IllegalArgumentException("Target value is null");

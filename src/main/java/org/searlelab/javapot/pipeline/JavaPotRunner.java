@@ -16,6 +16,7 @@ import java.util.concurrent.Future;
 
 import gnu.trove.set.hash.THashSet;
 import org.searlelab.javapot.cli.CliConfig;
+import org.searlelab.javapot.cli.OutputFormat;
 import org.searlelab.javapot.data.ColumnGroups;
 import org.searlelab.javapot.data.PsmDataset;
 import org.searlelab.javapot.io.ModelIO;
@@ -37,9 +38,24 @@ import org.searlelab.javapot.util.StableIntSort;
  * It drives parsing, fold training or model loading, scoring, confidence estimation, and TSV output writing.
  */
 public final class JavaPotRunner {
+	private static final String MOKAPOT_SCORE = "mokapot_score";
+	private static final String MOKAPOT_QVALUE = "mokapot_qvalue";
+	private static final String MOKAPOT_PEP = "mokapot_posterior_error_prob";
+	private static final List<String> PERCOLATOR_HEADER = List.of(
+		"PSMId",
+		"score",
+		"q-value",
+		"posterior_error_prob",
+		"peptide",
+		"proteinIds"
+	);
+
 	private JavaPotRunner() {
 	}
 
+	/**
+	 * Executes the full JavaPot pipeline for one parsed CLI configuration.
+	 */
 	public static void run(CliConfig config) {
 		System.out.println("[INFO] JavaPot starting");
 		PsmDataset dataset = PinFileParser.read(config.pinFile());
@@ -63,7 +79,7 @@ public final class JavaPotRunner {
 		double[] scores = predictScores(dataset, folds, models, config.testFdr());
 		double[] finalScores = maybeFallbackToBestFeature(dataset, models, scores, config.testFdr());
 
-		OutputTables tables = assignConfidenceAndBuildOutputs(dataset, finalScores, config.testFdr());
+		OutputTables tables = assignConfidenceAndBuildOutputs(dataset, finalScores, config.testFdr(), config.outputFormat());
 
 		Path psmPath = config.destDir().resolve("targets.psms.tsv");
 		Path peptidePath = config.destDir().resolve("targets.peptides.tsv");
@@ -221,7 +237,12 @@ public final class JavaPotRunner {
 		return scores;
 	}
 
-	private static OutputTables assignConfidenceAndBuildOutputs(PsmDataset dataset, double[] scores, double evalFdr) {
+	private static OutputTables assignConfidenceAndBuildOutputs(
+		PsmDataset dataset,
+		double[] scores,
+		double evalFdr,
+		OutputFormat outputFormat
+	) {
 		int[] psmBest = deduplicateBySpectrum(dataset, scores);
 		int[] peptideBest = deduplicateByPeptide(dataset, psmBest, scores);
 
@@ -235,12 +256,24 @@ public final class JavaPotRunner {
 		double[] pepQ = QValues.tdc(pepScores, pepTargets, true);
 		double[] pepPep = Arrays.copyOf(pepQ, pepQ.length);
 
-		List<String> header = outputHeader(dataset.columnGroups());
-		List<String[]> psmRows = buildOutputRows(dataset, psmBest, psmScores, psmQ, psmPep, header);
-		List<String[]> peptideRows = buildOutputRows(dataset, peptideBest, pepScores, pepQ, pepPep, header);
+		List<String> psmHeader;
+		List<String[]> psmRows;
+		List<String> peptideHeader;
+		List<String[]> peptideRows;
+		if (outputFormat == OutputFormat.MOKAPOT) {
+			psmHeader = mokapotHeader(dataset.columnGroups());
+			psmRows = buildMokapotRows(dataset, psmBest, psmScores, psmQ, psmPep, psmHeader);
+			peptideHeader = psmHeader;
+			peptideRows = buildMokapotRows(dataset, peptideBest, pepScores, pepQ, pepPep, peptideHeader);
+		} else {
+			psmHeader = PERCOLATOR_HEADER;
+			psmRows = buildPercolatorRows(dataset, psmBest, psmScores, psmQ, psmPep);
+			peptideHeader = PERCOLATOR_HEADER;
+			peptideRows = buildPercolatorRows(dataset, peptideBest, pepScores, pepQ, pepPep);
+		}
 		int peptidesAtThreshold = countTargetsAtThreshold(pepTargets, pepQ, evalFdr);
 
-		return new OutputTables(header, psmRows, header, peptideRows, peptidesAtThreshold);
+		return new OutputTables(psmHeader, psmRows, peptideHeader, peptideRows, peptidesAtThreshold);
 	}
 
 	private static int countTargetsAtThreshold(boolean[] targets, double[] qvals, double evalFdr) {
@@ -253,23 +286,23 @@ public final class JavaPotRunner {
 		return out;
 	}
 
-	private static List<String> outputHeader(ColumnGroups columns) {
+	private static List<String> mokapotHeader(ColumnGroups columns) {
 		List<String> out = new ArrayList<>(columns.spectrumColumns().size() + 8);
 		if (columns.optionalColumns().id() != null) {
 			out.add(columns.optionalColumns().id());
 		}
 		out.addAll(columns.spectrumColumns());
 		out.add(columns.peptideColumn());
-		out.add("mokapot_score");
-		out.add("mokapot_qvalue");
-		out.add("mokapot_posterior_error_prob");
+		out.add(MOKAPOT_SCORE);
+		out.add(MOKAPOT_QVALUE);
+		out.add(MOKAPOT_PEP);
 		if (columns.optionalColumns().protein() != null) {
 			out.add(columns.optionalColumns().protein());
 		}
 		return new ArrayList<>(new LinkedHashSet<>(out));
 	}
 
-	private static List<String[]> buildOutputRows(
+	private static List<String[]> buildMokapotRows(
 		PsmDataset dataset,
 		int[] keptIdx,
 		double[] scores,
@@ -286,11 +319,11 @@ public final class JavaPotRunner {
 			String[] row = new String[header.size()];
 			for (int c = 0; c < header.size(); c++) {
 				String col = header.get(c);
-				if (col.equals("mokapot_score")) {
+				if (col.equals(MOKAPOT_SCORE)) {
 					row[c] = Double.toString(scores[i]);
-				} else if (col.equals("mokapot_qvalue")) {
+				} else if (col.equals(MOKAPOT_QVALUE)) {
 					row[c] = Double.toString(qvals[i]);
-				} else if (col.equals("mokapot_posterior_error_prob")) {
+				} else if (col.equals(MOKAPOT_PEP)) {
 					row[c] = Double.toString(peps[i]);
 				} else {
 					row[c] = dataset.valueAt(rowIdx, col);
@@ -299,6 +332,55 @@ public final class JavaPotRunner {
 			out.add(row);
 		}
 		return out;
+	}
+
+	private static List<String[]> buildPercolatorRows(
+		PsmDataset dataset,
+		int[] keptIdx,
+		double[] scores,
+		double[] qvals,
+		double[] peps
+	) {
+		List<String[]> out = new ArrayList<>(keptIdx.length);
+		for (int i = 0; i < keptIdx.length; i++) {
+			int rowIdx = keptIdx[i];
+			if (!dataset.targetAt(rowIdx)) {
+				continue;
+			}
+			String[] row = new String[PERCOLATOR_HEADER.size()];
+			row[0] = resolvePercolatorPsmId(dataset, rowIdx);
+			row[1] = Double.toString(scores[i]);
+			row[2] = Double.toString(qvals[i]);
+			row[3] = Double.toString(peps[i]);
+			row[4] = dataset.peptideAt(rowIdx);
+			row[5] = resolvePercolatorProteinIds(dataset, rowIdx);
+			out.add(row);
+		}
+		return out;
+	}
+
+	private static String resolvePercolatorPsmId(PsmDataset dataset, int rowIdx) {
+		String idColumn = dataset.columnGroups().optionalColumns().id();
+		if (idColumn != null) {
+			String value = dataset.valueAt(rowIdx, idColumn);
+			if (value != null && !value.isBlank()) {
+				return value;
+			}
+		}
+		String[] spectrumValues = dataset.spectrumValuesAt(rowIdx);
+		if (spectrumValues.length > 0) {
+			return String.join(":", spectrumValues);
+		}
+		return Integer.toString(rowIdx);
+	}
+
+	private static String resolvePercolatorProteinIds(PsmDataset dataset, int rowIdx) {
+		String proteinColumn = dataset.columnGroups().optionalColumns().protein();
+		if (proteinColumn == null) {
+			return "";
+		}
+		String proteins = dataset.valueAt(rowIdx, proteinColumn);
+		return proteins == null ? "" : proteins;
 	}
 
 	private static int[] deduplicateBySpectrum(PsmDataset dataset, double[] scores) {

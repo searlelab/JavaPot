@@ -9,11 +9,17 @@ public final class StandardScaler {
 	private double[] scales;
 	private boolean fitted;
 
+	/**
+	 * Fits scaling parameters and returns a normalized copy of the input matrix.
+	 */
 	public double[][] fitTransform(double[][] x) {
 		fit(x);
 		return transform(x);
 	}
 
+	/**
+	 * Learns per-column means and standard deviations.
+	 */
 	public void fit(double[][] x) {
 		if (x.length == 0) {
 			throw new IllegalArgumentException("Cannot scale empty matrix");
@@ -44,6 +50,9 @@ public final class StandardScaler {
 		fitted = true;
 	}
 
+	/**
+	 * Applies learned scaling parameters to a matrix.
+	 */
 	public double[][] transform(double[][] x) {
 		if (!fitted) {
 			throw new IllegalStateException("Scaler is not fitted");
@@ -57,14 +66,23 @@ public final class StandardScaler {
 		return out;
 	}
 
+	/**
+	 * Returns fitted column means.
+	 */
 	public double[] means() {
 		return means.clone();
 	}
 
+	/**
+	 * Returns fitted column scales.
+	 */
 	public double[] scales() {
 		return scales.clone();
 	}
 
+	/**
+	 * Reconstructs a fitted scaler from persisted means and scales.
+	 */
 	public static StandardScaler from(double[] means, double[] scales) {
 		StandardScaler scaler = new StandardScaler();
 		scaler.means = means.clone();

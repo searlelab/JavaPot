@@ -20,6 +20,9 @@ public final class PsmDataset {
 	private final Map<String, Integer> featureIndex;
 	private final Map<String, Integer> columnIndex;
 
+	/**
+	 * Builds a typed dataset view from parsed header and row values.
+	 */
 	public PsmDataset(ColumnGroups columnGroups, List<String> headers, String[][] rows) {
 		this.columnGroups = columnGroups;
 		this.headers = List.copyOf(headers);
@@ -63,30 +66,51 @@ public final class PsmDataset {
 		return out;
 	}
 
+	/**
+	 * Returns the number of PSM rows in this dataset.
+	 */
 	public int size() {
 		return rows.length;
 	}
 
+	/**
+	 * Returns the number of modeled feature columns.
+	 */
 	public int featureCount() {
 		return featureNames.length;
 	}
 
+	/**
+	 * Returns feature names in model column order.
+	 */
 	public String[] featureNames() {
 		return Arrays.copyOf(featureNames, featureNames.length);
 	}
 
+	/**
+	 * Returns inferred column grouping metadata.
+	 */
 	public ColumnGroups columnGroups() {
 		return columnGroups;
 	}
 
+	/**
+	 * Returns a defensive copy of target/decoy labels.
+	 */
 	public boolean[] targets() {
 		return Arrays.copyOf(targets, targets.length);
 	}
 
+	/**
+	 * Returns the target/decoy label for one row.
+	 */
 	public boolean targetAt(int idx) {
 		return targets[idx];
 	}
 
+	/**
+	 * Returns a deep copy of the feature matrix.
+	 */
 	public double[][] features() {
 		double[][] copy = new double[features.length][];
 		for (int i = 0; i < features.length; i++) {
@@ -95,14 +119,23 @@ public final class PsmDataset {
 		return copy;
 	}
 
+	/**
+	 * Returns the internal feature matrix without copying.
+	 */
 	public double[][] rawFeatures() {
 		return features;
 	}
 
+	/**
+	 * Returns the internal target labels without copying.
+	 */
 	public boolean[] rawTargets() {
 		return targets;
 	}
 
+	/**
+	 * Extracts one feature column by name for all rows.
+	 */
 	public double[] featureColumn(String name) {
 		Integer localIndex = featureIndex.get(name);
 		if (localIndex == null) {
@@ -115,10 +148,16 @@ public final class PsmDataset {
 		return out;
 	}
 
+	/**
+	 * Returns the peptide string for a row.
+	 */
 	public String peptideAt(int idx) {
 		return rows[idx][colIndex(columnGroups.peptideColumn())];
 	}
 
+	/**
+	 * Returns spectrum-group key column values for a row.
+	 */
 	public String[] spectrumValuesAt(int idx) {
 		String[] out = new String[spectrumColIndices.length];
 		for (int i = 0; i < spectrumColIndices.length; i++) {
@@ -127,18 +166,30 @@ public final class PsmDataset {
 		return out;
 	}
 
+	/**
+	 * Returns a raw cell value by row and absolute column index.
+	 */
 	public String rawValueAt(int row, int columnIdx) {
 		return rows[row][columnIdx];
 	}
 
+	/**
+	 * Returns absolute column indices of spectrum grouping columns.
+	 */
 	public int[] spectrumColIndices() {
 		return Arrays.copyOf(spectrumColIndices, spectrumColIndices.length);
 	}
 
+	/**
+	 * Returns a cell value by row and column name.
+	 */
 	public String valueAt(int row, String column) {
 		return rows[row][colIndex(column)];
 	}
 
+	/**
+	 * Resolves a column name to its absolute index.
+	 */
 	public int colIndex(String column) {
 		Integer idx = columnIndex.get(column);
 		if (idx == null) {
@@ -147,6 +198,9 @@ public final class PsmDataset {
 		return idx;
 	}
 
+	/**
+	 * Returns a deep copy of the raw PIN rows.
+	 */
 	public String[][] rows() {
 		String[][] copy = new String[rows.length][];
 		for (int i = 0; i < rows.length; i++) {
@@ -155,10 +209,16 @@ public final class PsmDataset {
 		return copy;
 	}
 
+	/**
+	 * Returns the original file headers in order.
+	 */
 	public List<String> headers() {
 		return headers;
 	}
 
+	/**
+	 * Rebuilds this dataset with alternative column-role inference.
+	 */
 	public PsmDataset withColumnGroups(ColumnGroups newGroups) {
 		return new PsmDataset(newGroups, headers, rows);
 	}

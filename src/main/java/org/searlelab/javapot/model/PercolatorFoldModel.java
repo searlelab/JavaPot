@@ -21,6 +21,9 @@ public final class PercolatorFoldModel implements Serializable {
 	private final boolean bestFeatureDescending;
 	private final int fold;
 
+	/**
+	 * Creates a fold model with scaler, SVM, and best-feature fallback metadata.
+	 */
 	public PercolatorFoldModel(
 		String[] featureNames,
 		double[] means,
@@ -41,32 +44,53 @@ public final class PercolatorFoldModel implements Serializable {
 		this.fold = fold;
 	}
 
+	/**
+	 * Scores rows after applying fold-specific standardization.
+	 */
 	public double[] predict(double[][] rawFeatures) {
 		StandardScaler scaler = StandardScaler.from(means, scales);
 		double[][] norm = scaler.transform(rawFeatures);
 		return svm.decisionFunction(norm);
 	}
 
+	/**
+	 * Returns feature names expected by this fold model.
+	 */
 	public String[] featureNames() {
 		return Arrays.copyOf(featureNames, featureNames.length);
 	}
 
+	/**
+	 * Returns the fitted linear SVM model.
+	 */
 	public LinearSvmModel svm() {
 		return svm;
 	}
 
+	/**
+	 * Returns the best single feature used for fallback comparisons.
+	 */
 	public String bestFeature() {
 		return bestFeature;
 	}
 
+	/**
+	 * Returns how many targets passed at train FDR for the best feature.
+	 */
 	public int bestFeaturePass() {
 		return bestFeaturePass;
 	}
 
+	/**
+	 * Returns whether the best feature is scored in descending order.
+	 */
 	public boolean bestFeatureDescending() {
 		return bestFeatureDescending;
 	}
 
+	/**
+	 * Returns the 1-based fold index this model was trained on.
+	 */
 	public int fold() {
 		return fold;
 	}

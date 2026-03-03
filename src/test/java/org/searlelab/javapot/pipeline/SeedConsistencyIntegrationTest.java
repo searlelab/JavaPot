@@ -97,7 +97,7 @@ class SeedConsistencyIntegrationTest {
 			if (header == null) {
 				return 0;
 			}
-			int qIdx = findColumnIndex(header, "mokapot_qvalue", "mokapot q-value");
+			int qIdx = findColumnIndex(header, "q-value", "mokapot_qvalue", "mokapot q-value");
 			if (qIdx < 0) {
 				throw new IllegalStateException("q-value column not found in " + file);
 			}
@@ -129,7 +129,7 @@ class SeedConsistencyIntegrationTest {
 			int qIdx = -1;
 			int peptideIdx = -1;
 			for (int i = 0; i < cols.length; i++) {
-				if (cols[i].equals("mokapot_qvalue") || cols[i].equals("mokapot q-value")) {
+				if (cols[i].equals("q-value") || cols[i].equals("mokapot_qvalue") || cols[i].equals("mokapot q-value")) {
 					qIdx = i;
 				} else if (cols[i].equalsIgnoreCase("Peptide")) {
 					peptideIdx = i;
@@ -155,11 +155,13 @@ class SeedConsistencyIntegrationTest {
 		}
 	}
 
-	private static int findColumnIndex(String header, String firstName, String secondName) {
+	private static int findColumnIndex(String header, String... names) {
 		String[] cols = header.split("\\t");
 		for (int i = 0; i < cols.length; i++) {
-			if (cols[i].equals(firstName) || cols[i].equals(secondName)) {
-				return i;
+			for (String name : names) {
+				if (cols[i].equals(name)) {
+					return i;
+				}
 			}
 		}
 		return -1;

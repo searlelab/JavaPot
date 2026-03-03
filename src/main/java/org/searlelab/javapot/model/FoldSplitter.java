@@ -24,6 +24,9 @@ public final class FoldSplitter {
 	private FoldSplitter() {
 	}
 
+	/**
+	 * Splits dataset rows into deterministic folds while keeping spectrum groups intact.
+	 */
 	public static int[][] split(PsmDataset dataset, int folds, DeterministicRandom rng) {
 		int n = dataset.size();
 		long[] hashes = new long[n];

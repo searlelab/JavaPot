@@ -14,6 +14,9 @@ public final class PercolatorTrainer {
 	private PercolatorTrainer() {
 	}
 
+	/**
+	 * Trains one fold model using best-feature initialization and iterative relabeling.
+	 */
 	public static FoldTrainingOutput trainFold(
 		PsmDataset dataset,
 		int[] trainIdx,

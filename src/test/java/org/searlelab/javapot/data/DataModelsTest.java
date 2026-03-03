@@ -35,6 +35,7 @@ class DataModelsTest {
 		ColumnGroups groups = ColumnGroups.inferFromColnames(cols);
 		assertEquals("Label", groups.targetColumn());
 		assertEquals("Peptide", groups.peptideColumn());
+		assertEquals(cols, groups.columns());
 		assertEquals(List.of("FileName", "ScanNr", "ret_time", "ExpMass"), groups.spectrumColumns());
 		assertEquals(List.of("modifiedPeptide", "Precursor", "PeptideGroup"), groups.extraConfidenceLevelColumns());
 		assertEquals("SpecId", groups.optionalColumns().id());
@@ -42,6 +43,7 @@ class DataModelsTest {
 		assertTrue(groups.featureColumns().contains("feat1"));
 		assertTrue(groups.featureColumns().contains("charge_2"));
 		assertFalse(groups.featureColumns().contains("Label"));
+		assertTrue(groups.toString().contains("targetColumn='Label'"));
 	}
 
 	@Test
@@ -110,10 +112,18 @@ class DataModelsTest {
 		assertArrayEquals(new String[]{"101", "501.0"}, ds.spectrumValuesAt(1));
 		assertEquals("P3", ds.valueAt(2, "Proteins"));
 		assertArrayEquals(new double[]{10.0, 1.0, 2.0}, ds.featureColumn("featA"));
+		assertArrayEquals(new boolean[]{true, false, false}, ds.rawTargets());
+		assertEquals(groups, ds.columnGroups());
+		assertEquals(headers, ds.headers());
+		assertEquals("id2", ds.rawValueAt(1, ds.colIndex("SpecId")));
+		assertArrayEquals(new int[]{2, 3}, ds.spectrumColIndices());
 
 		double[][] copied = ds.features();
 		copied[0][0] = -999.0;
 		assertEquals(10.0, ds.rawFeatures()[0][0], 1e-12);
+		String[][] rowsCopy = ds.rows();
+		rowsCopy[0][0] = "mutated";
+		assertEquals("id1", ds.rawValueAt(0, ds.colIndex("SpecId")));
 
 		ColumnGroups oneFeature = groups.withFeatureColumns(List.of("featB"));
 		PsmDataset reduced = ds.withColumnGroups(oneFeature);

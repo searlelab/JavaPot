@@ -8,6 +8,9 @@ public final class LabelUpdater {
 	private LabelUpdater() {
 	}
 
+	/**
+	 * Converts calibrated scores into Percolator labels (-1, 0, +1) at the requested FDR.
+	 */
 	public static int[] updateLabels(double[] scores, boolean[] targets, double evalFdr, boolean desc) {
 		double[] qvals = QValues.tdc(scores, targets, desc);
 		int[] out = new int[qvals.length];

@@ -10,6 +10,9 @@ public final class JavaPotCli {
 	private JavaPotCli() {
 	}
 
+	/**
+	 * Program entrypoint that parses CLI args and launches the JavaPot pipeline.
+	 */
 	public static void main(String[] args) {
 		try {
 			CliConfig config = CliParser.parse(args);

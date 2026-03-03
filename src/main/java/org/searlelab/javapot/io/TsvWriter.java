@@ -14,6 +14,9 @@ public final class TsvWriter {
 	private TsvWriter() {
 	}
 
+	/**
+	 * Writes a TSV file with one header row followed by data rows.
+	 */
 	public static void write(Path path, List<String> header, List<String[]> rows) {
 		try (BufferedWriter writer = Files.newBufferedWriter(path)) {
 			writer.write(String.join("\t", header));

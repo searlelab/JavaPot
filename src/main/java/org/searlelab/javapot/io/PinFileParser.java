@@ -21,6 +21,9 @@ public final class PinFileParser {
 	private PinFileParser() {
 	}
 
+	/**
+	 * Parses one PIN-like tab-delimited file into an in-memory dataset.
+	 */
 	public static PsmDataset read(Path pinFile) {
 		try {
 			boolean traditional = isTraditionalPin(pinFile);
