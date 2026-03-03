@@ -5,9 +5,10 @@
 
 	<groupId>org.searlelab</groupId>
 	<artifactId>javapot</artifactId>
-	<version>0.1.0-SNAPSHOT</version>
+	<version>1.0.0</version>
 	<name>JavaPot</name>
 	<description>Java clone of mokapot main Percolator path for PIN input.</description>
+	<url>https://github.com/searlelab/JavaPot</url>
 
 	<properties>
 		<maven.compiler.source>17</maven.compiler.source>
@@ -180,6 +181,36 @@
 					</execution>
 				</executions>
 			</plugin>
+			<plugin>
+				<groupId>org.apache.maven.plugins</groupId>
+				<artifactId>maven-javadoc-plugin</artifactId>
+				<version>3.12.0</version>
+				<configuration>
+					<doclint>all,-missing</doclint>
+				</configuration>
+				<executions>
+					<execution>
+						<id>attach-javadocs</id>
+						<phase>package</phase>
+						<goals>
+							<goal>jar</goal>
+						</goals>
+					</execution>
+				</executions>
+			</plugin>
 		</plugins>
 	</build>
+
+	<distributionManagement>
+		<repository>
+			<id>github</id>
+			<name>GitHub Packages</name>
+			<url>https://maven.pkg.github.com/searlelab/JavaPot</url>
+		</repository>
+		<snapshotRepository>
+			<id>github</id>
+			<name>GitHub Packages</name>
+			<url>https://maven.pkg.github.com/searlelab/JavaPot</url>
+		</snapshotRepository>
+	</distributionManagement>
 </project>
