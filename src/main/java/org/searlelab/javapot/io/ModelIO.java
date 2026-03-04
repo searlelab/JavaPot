@@ -25,7 +25,7 @@ public final class ModelIO {
 	}
 
 	/**
-	 * Resolves the default model output path as <pin_base>.model.tsv in the destination directory.
+	 * Resolves the default model output path as {@code <pin_base>.model.tsv} in the destination directory.
 	 */
 	public static Path defaultModelPath(Path pinFile, Path destDir) {
 		return destDir.resolve(pinOutputBaseName(pinFile) + ".model.tsv");
