@@ -61,6 +61,20 @@ public final class PercolatorFoldModel implements Serializable {
 	}
 
 	/**
+	 * Returns per-feature means used during model training normalization.
+	 */
+	public double[] means() {
+		return Arrays.copyOf(means, means.length);
+	}
+
+	/**
+	 * Returns per-feature scales used during model training normalization.
+	 */
+	public double[] scales() {
+		return Arrays.copyOf(scales, scales.length);
+	}
+
+	/**
 	 * Returns the fitted linear SVM model.
 	 */
 	public LinearSvmModel svm() {

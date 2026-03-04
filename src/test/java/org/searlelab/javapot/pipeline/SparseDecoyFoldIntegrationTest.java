@@ -6,7 +6,6 @@ import java.io.BufferedReader;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.List;
 
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -36,14 +35,14 @@ class SparseDecoyFoldIntegrationTest {
 			3L,
 			null,
 			null,
-			false,
+			null,
 			true,
 			false,
 			null,
 			null,
 			null,
 			null,
-			List.of(),
+			null,
 			3,
 			false
 		);

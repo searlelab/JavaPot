@@ -32,7 +32,8 @@ class CliParserTest {
 		assertNull(cfg.decoyResultsPeptides());
 		assertNull(cfg.resultsPsms());
 		assertNull(cfg.decoyResultsPsms());
-		assertTrue(cfg.loadModels().isEmpty());
+		assertNull(cfg.saveModelFile());
+		assertNull(cfg.loadModelFile());
 		assertFalse(cfg.mixmax());
 	}
 
@@ -57,9 +58,9 @@ class CliParserTest {
 	}
 
 	@Test
-	void parsesLoadModelsList() {
-		JavaPotOptions cfg = CliParser.parse(new String[]{"input.pin", "--load_models", "m1.bin", "m2.bin", "--folds", "2"});
-		assertEquals(2, cfg.loadModels().size());
+	void parsesSingleLoadModelPath() {
+		JavaPotOptions cfg = CliParser.parse(new String[]{"input.pin", "--load_models", "m1.model.tsv", "--folds", "2"});
+		assertEquals(Path.of("m1.model.tsv"), cfg.loadModelFile());
 		assertEquals(2, cfg.folds());
 		assertEquals(2, cfg.maxWorkers());
 		assertEquals(OutputFormat.PERCOLATOR, cfg.outputFormat());
@@ -112,11 +113,44 @@ class CliParserTest {
 		assertEquals("featA", cfg.direction());
 		assertEquals(777, cfg.subsetMaxTrain());
 		assertEquals(OutputFormat.MOKAPOT, cfg.outputFormat());
-		assertTrue(cfg.writeModelFiles());
+		assertEquals(Path.of("/tmp/out/input.model.tsv"), cfg.saveModelFile());
 		assertTrue(cfg.writePsmFiles());
 		assertTrue(cfg.writeDecoyFiles());
 		assertEquals(5, cfg.folds());
 		assertTrue(cfg.mixmax());
+	}
+
+	@Test
+	void parsesPercolatorWeightAliases() {
+		JavaPotOptions cfg = CliParser.parse(new String[]{
+			"input.pin",
+			"--weights", "saved.model.tsv",
+			"--init-weights", "load.model.tsv"
+		});
+		assertEquals(Path.of("saved.model.tsv"), cfg.saveModelFile());
+		assertEquals(Path.of("load.model.tsv"), cfg.loadModelFile());
+	}
+
+	@Test
+	void writeModelFilesDefaultNameDropsPinLikeExtensions() {
+		JavaPotOptions fromPin = CliParser.parse(new String[]{"/tmp/sample.pin", "--write_model_files"});
+		JavaPotOptions fromTsv = CliParser.parse(new String[]{"/tmp/sample.tsv", "--write_model_files"});
+		JavaPotOptions fromTxt = CliParser.parse(new String[]{"/tmp/sample.txt", "--write_model_files"});
+		assertEquals(Path.of("/tmp/sample.model.tsv"), fromPin.saveModelFile());
+		assertEquals(Path.of("/tmp/sample.model.tsv"), fromTsv.saveModelFile());
+		assertEquals(Path.of("/tmp/sample.model.tsv"), fromTxt.saveModelFile());
+	}
+
+	@Test
+	void rejectsConflictingWeightPathRepeats() {
+		assertThrows(
+			IllegalArgumentException.class,
+			() -> CliParser.parse(new String[]{"input.pin", "--weights", "a.model.tsv", "--weights", "b.model.tsv"})
+		);
+		assertThrows(
+			IllegalArgumentException.class,
+			() -> CliParser.parse(new String[]{"input.pin", "--load_models", "a.model.tsv", "--init-weights", "b.model.tsv"})
+		);
 	}
 
 	@Test
@@ -154,6 +188,8 @@ class CliParserTest {
 		assertThrows(IllegalArgumentException.class, () -> CliParser.parse(new String[]{"input.pin", "--seed", "x"}));
 		assertThrows(IllegalArgumentException.class, () -> CliParser.parse(new String[]{"input.pin", "--train_fdr", "x"}));
 		assertThrows(IllegalArgumentException.class, () -> CliParser.parse(new String[]{"input.pin", "--load_models"}));
+		assertThrows(IllegalArgumentException.class, () -> CliParser.parse(new String[]{"input.pin", "--weights"}));
+		assertThrows(IllegalArgumentException.class, () -> CliParser.parse(new String[]{"input.pin", "--init-weights"}));
 		assertThrows(IllegalArgumentException.class, () -> CliParser.parse(new String[]{"input.pin", "--output_format", "foo"}));
 		assertThrows(IllegalArgumentException.class, () -> CliParser.parse(new String[]{"input.pin", "--results-peptides"}));
 		assertThrows(IllegalArgumentException.class, () -> CliParser.parse(new String[]{"input.pin", "--results-psms"}));
@@ -178,6 +214,8 @@ class CliParserTest {
 		assertTrue(help.contains("--post-processing-mix-max"));
 		assertTrue(help.contains("--quiet"));
 		assertTrue(help.contains("--write_model_files"));
+		assertTrue(help.contains("--weights"));
+		assertTrue(help.contains("--init-weights"));
 		assertTrue(help.contains("--write_psm_files"));
 		assertTrue(help.contains("--write_decoy_files"));
 		assertTrue(help.contains("--results-peptides"));

@@ -10,13 +10,14 @@ import java.nio.file.Path;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.searlelab.javapot.cli.JavaPotCli;
+import org.searlelab.javapot.io.ModelIO;
 
 class LoadModelsOrderingIntegrationTest {
 	@TempDir
 	Path tempDir;
 
 	@Test
-	void reversedModelPathOrderProducesIdenticalOutputs() throws Exception {
+	void loadingModelTextFileProducesIdenticalOutputs() throws Exception {
 		Path pin = writeSyntheticPin(tempDir.resolve("load_models.pin"));
 		Path trainDir = tempDir.resolve("train");
 		Files.createDirectories(trainDir);
@@ -35,19 +36,15 @@ class LoadModelsOrderingIntegrationTest {
 			"--write_model_files"
 		});
 
-		Path model1 = trainDir.resolve("javapot.model_fold-1.bin");
-		Path model2 = trainDir.resolve("javapot.model_fold-2.bin");
-		assertTrue(Files.exists(model1), "Expected fold-1 model file");
-		assertTrue(Files.exists(model2), "Expected fold-2 model file");
+		Path modelFile = ModelIO.defaultModelPath(pin, trainDir);
+		assertTrue(Files.exists(modelFile), "Expected text model file");
 
-		Path orderedOut = tempDir.resolve("ordered");
-		Path reversedOut = tempDir.resolve("reversed");
-		Files.createDirectories(orderedOut);
-		Files.createDirectories(reversedOut);
+		Path loadedOut = tempDir.resolve("loaded");
+		Files.createDirectories(loadedOut);
 
 		JavaPotCli.main(new String[]{
 			pin.toString(),
-			"--dest_dir", orderedOut.toString(),
+			"--dest_dir", loadedOut.toString(),
 			"--output_format", "mokapot",
 			"--max_workers", "1",
 			"--write_psm_files",
@@ -56,25 +53,11 @@ class LoadModelsOrderingIntegrationTest {
 			"--seed", "7",
 			"--train_fdr", "0.5",
 			"--test_fdr", "0.5",
-			"--load_models", model1.toString(), model2.toString()
+			"--load_models", modelFile.toString()
 		});
 
-		JavaPotCli.main(new String[]{
-			pin.toString(),
-			"--dest_dir", reversedOut.toString(),
-			"--output_format", "mokapot",
-			"--max_workers", "1",
-			"--write_psm_files",
-			"--folds", "2",
-			"--max_iter", "2",
-			"--seed", "7",
-			"--train_fdr", "0.5",
-			"--test_fdr", "0.5",
-			"--load_models", model2.toString(), model1.toString()
-		});
-
-		assertEquals(-1L, Files.mismatch(orderedOut.resolve("load_models.psms.tsv"), reversedOut.resolve("load_models.psms.tsv")));
-		assertEquals(-1L, Files.mismatch(orderedOut.resolve("load_models.peptides.tsv"), reversedOut.resolve("load_models.peptides.tsv")));
+		assertEquals(-1L, Files.mismatch(trainDir.resolve("load_models.psms.tsv"), loadedOut.resolve("load_models.psms.tsv")));
+		assertEquals(-1L, Files.mismatch(trainDir.resolve("load_models.peptides.tsv"), loadedOut.resolve("load_models.peptides.tsv")));
 	}
 
 	private static Path writeSyntheticPin(Path file) throws IOException {

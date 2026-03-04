@@ -75,13 +75,8 @@ public final class JavaPotRunner {
 		DeterministicRandom rng = new DeterministicRandom(config.seed());
 		int[][] folds = FoldSplitter.split(dataset, config.folds(), rng, config.pinFile().getFileName().toString());
 		List<PercolatorFoldModel> models;
-		if (!config.loadModels().isEmpty()) {
-			if (config.loadModels().size() != config.folds()) {
-				throw new IllegalArgumentException(
-					"--load_models count (" + config.loadModels().size() + ") must match --folds (" + config.folds() + ")"
-				);
-			}
-			models = ModelIO.loadModels(config.loadModels());
+		if (config.loadModelFile() != null) {
+			models = ModelIO.loadModels(config.loadModelFile());
 			validateLoadedModelFolds(models, config.folds());
 		} else {
 			models = trainModels(dataset, folds, config, rng);
@@ -110,9 +105,9 @@ public final class JavaPotRunner {
 
 		List<Path> writtenPaths = writeOutputTables(tables, outputPlan);
 
-		if (config.writeModelFiles()) {
-			ensureDestDir(config.destDir());
-			ModelIO.saveModels(models, config.destDir());
+		if (config.saveModelFile() != null) {
+			ensureParentDirectory(config.saveModelFile());
+			ModelIO.saveModels(models, config.saveModelFile());
 		}
 
 		log(config, "Found " + tables.peptidesAtThreshold() + " peptides with q<=" + config.testFdr());
@@ -139,14 +134,6 @@ public final class JavaPotRunner {
 		log(config, "Found " + dataset.size() + " total PSMs");
 		log(config, "  - " + targetCount + " target PSMs and " + (dataset.size() - targetCount) + " decoy PSMs detected.");
 		log(config, "Using " + dataset.featureCount() + " features: " + String.join(",", dataset.featureNames()));
-	}
-
-	private static void ensureDestDir(Path destDir) {
-		try {
-			Files.createDirectories(destDir);
-		} catch (Exception e) {
-			throw new RuntimeException("Unable to create dest dir: " + destDir, e);
-		}
 	}
 
 	private static List<Path> writeOutputTables(OutputTables tables, OutputPlan plan) {

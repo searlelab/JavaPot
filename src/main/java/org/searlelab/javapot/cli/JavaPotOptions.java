@@ -1,7 +1,6 @@
 package org.searlelab.javapot.cli;
 
 import java.nio.file.Path;
-import java.util.List;
 
 /**
  * JavaPotOptions is the immutable runtime configuration for a single JavaPot execution.
@@ -19,14 +18,14 @@ public record JavaPotOptions(
 	long seed,
 	String direction,
 	Integer subsetMaxTrain,
-	boolean writeModelFiles,
+	Path saveModelFile,
 	boolean writePsmFiles,
 	boolean writeDecoyFiles,
 	Path resultsPeptides,
 	Path decoyResultsPeptides,
 	Path resultsPsms,
 	Path decoyResultsPsms,
-	List<Path> loadModels,
+	Path loadModelFile,
 	int folds,
 	boolean mixmax
 ) {
@@ -41,6 +40,8 @@ public record JavaPotOptions(
 		double testFdr,
 		Path resultsPeptides,
 		Path decoyResultsPeptides,
+		Path saveModelFile,
+		Path loadModelFile,
 		boolean mixmax
 	) {
 		this(
@@ -55,17 +56,28 @@ public record JavaPotOptions(
 			DEFAULT_SEED,
 			null,
 			null,
-			false,
+			saveModelFile,
 			false,
 			false,
 			resultsPeptides,
 			decoyResultsPeptides,
 			null,
 			null,
-			List.of(),
+			loadModelFile,
 			DEFAULT_FOLDS,
 			mixmax
 		);
+	}
+
+	public JavaPotOptions(
+		Path pinFile,
+		double trainFdr,
+		double testFdr,
+		Path resultsPeptides,
+		Path decoyResultsPeptides,
+		boolean mixmax
+	) {
+		this(pinFile, trainFdr, testFdr, resultsPeptides, decoyResultsPeptides, null, null, mixmax);
 	}
 
 	private static Path defaultOutputDir(Path pinFile) {

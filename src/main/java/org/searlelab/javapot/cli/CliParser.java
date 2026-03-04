@@ -4,6 +4,8 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 
+import org.searlelab.javapot.io.ModelIO;
+
 /**
  * CliParser parses the supported JavaPot command-line options into a validated {@link JavaPotOptions}.
  * It also enforces argument constraints such as exactly one PIN input and allowed numeric ranges.
@@ -33,13 +35,14 @@ public final class CliParser {
 		String direction = null;
 		Integer subsetMaxTrain = null;
 		boolean writeModelFiles = false;
+		Path saveModelFile = null;
 		boolean writePsmFiles = false;
 		boolean writeDecoyFiles = false;
 		Path resultsPeptides = null;
 		Path decoyResultsPeptides = null;
 		Path resultsPsms = null;
 		Path decoyResultsPsms = null;
-		List<Path> loadModels = new ArrayList<>();
+		Path loadModelFile = null;
 		int folds = JavaPotOptions.DEFAULT_FOLDS;
 		boolean mixmax = false;
 		List<String> positional = new ArrayList<>();
@@ -83,6 +86,9 @@ public final class CliParser {
 				case "--write_model_files" -> {
 					writeModelFiles = true;
 				}
+				case "--weights" -> {
+					saveModelFile = assignSinglePath(saveModelFile, requireValue(args, ++i, arg), "--weights");
+				}
 				case "--write_psm_files" -> {
 					writePsmFiles = true;
 				}
@@ -105,12 +111,10 @@ public final class CliParser {
 					mixmax = true;
 				}
 				case "--load_models" -> {
-					if (i + 1 >= args.length || args[i + 1].startsWith("-")) {
-						throw new IllegalArgumentException("--load_models requires at least one model path");
-					}
-					while (i + 1 < args.length && !args[i + 1].startsWith("-")) {
-						loadModels.add(Path.of(args[++i]));
-					}
+					loadModelFile = assignSinglePath(loadModelFile, requireValue(args, ++i, arg), "--load_models");
+				}
+				case "--init-weights" -> {
+					loadModelFile = assignSinglePath(loadModelFile, requireValue(args, ++i, arg), "--init-weights");
 				}
 				case "--folds" -> {
 					folds = parseInt(requireValue(args, ++i, arg), arg);
@@ -154,6 +158,10 @@ public final class CliParser {
 			throw new IllegalArgumentException("--test_fdr must be in (0,1)");
 		}
 		int resolvedMaxWorkers = maxWorkers != null ? maxWorkers : folds;
+		Path resolvedSaveModelFile = saveModelFile;
+		if (resolvedSaveModelFile == null && writeModelFiles) {
+			resolvedSaveModelFile = ModelIO.defaultModelPath(pinFile, resolvedDestDir);
+		}
 
 		return new JavaPotOptions(
 			pinFile,
@@ -167,14 +175,14 @@ public final class CliParser {
 			seed,
 			direction,
 			subsetMaxTrain,
-			writeModelFiles,
+			resolvedSaveModelFile,
 			writePsmFiles,
 			writeDecoyFiles,
 			resultsPeptides,
 			decoyResultsPeptides,
 			resultsPsms,
 			decoyResultsPsms,
-			List.copyOf(loadModels),
+			loadModelFile,
 			folds,
 			mixmax
 		);
@@ -204,7 +212,8 @@ public final class CliParser {
 			                        The name of the feature to use as the initial direction for ranking PSMs.
 			  --subset_max_train SUBSET_MAX_TRAIN
 			                        Maximum number of PSMs to use during the training of each of the cross validation folds in the model.
-			  --write_model_files   Save the models learned by javapot as Java serialized model objects.
+			  --write_model_files   Save learned fold models to <pin_base>.model.tsv in --dest_dir.
+			  --weights PATH        Save learned fold models to PATH (Percolator-compatible alias).
 			  --write_psm_files     Write target PSM output files in addition to peptide files.
 			  --write_decoy_files   Write decoy peptide/PSM forensic output files.
 			  --mixmax, --post-processing-mix-max
@@ -217,8 +226,8 @@ public final class CliParser {
 			                        Write target PSM output to PATH (relative to current working directory).
 			  --decoy-results-psms PATH
 			                        Write decoy PSM output to PATH (relative to current working directory).
-			  --load_models LOAD_MODELS [LOAD_MODELS ...]
-			                        Load previously saved models and skip model training. Number of models must match --folds.
+			  --load_models PATH, --init-weights PATH    
+			                        Load Percolator-style text model file and skip model training.
 			  --folds FOLDS         Number of cross-validation folds. Default: 3.
 		""";
 		System.out.println(help);
@@ -238,6 +247,14 @@ public final class CliParser {
 			throw new IllegalArgumentException("Missing value for option " + opt);
 		}
 		return args[idx];
+	}
+
+	private static Path assignSinglePath(Path existing, String rawPath, String opt) {
+		Path parsed = Path.of(rawPath);
+		if (existing != null && !existing.equals(parsed)) {
+			throw new IllegalArgumentException(opt + " cannot be specified more than once with different paths");
+		}
+		return parsed;
 	}
 
 	private static int parseInt(String value, String opt) {

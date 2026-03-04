@@ -22,12 +22,16 @@ class JavaPotApiTest {
 		Path pinFile = tempDir.resolve("input.pin");
 		Path resultsPeptides = tempDir.resolve("out").resolve("target.tsv");
 		Path decoyResultsPeptides = tempDir.resolve("out").resolve("decoy.tsv");
+		Path saveModelFile = tempDir.resolve("out").resolve("saved.model.tsv");
+		Path loadModelFile = tempDir.resolve("in").resolve("load.model.tsv");
 		JavaPotOptions options = new JavaPotOptions(
 			pinFile,
 			0.02,
 			0.03,
 			resultsPeptides,
 			decoyResultsPeptides,
+			saveModelFile,
+			loadModelFile,
 			true
 		);
 
@@ -41,14 +45,14 @@ class JavaPotApiTest {
 		assertTrue(options.maxIter() == JavaPotOptions.DEFAULT_MAX_ITER);
 		assertTrue(options.seed() == JavaPotOptions.DEFAULT_SEED);
 		assertTrue(options.folds() == JavaPotOptions.DEFAULT_FOLDS);
-		assertFalse(options.writeModelFiles());
+		assertTrue(options.saveModelFile().equals(saveModelFile));
 		assertFalse(options.writePsmFiles());
 		assertFalse(options.writeDecoyFiles());
 		assertTrue(options.resultsPeptides().equals(resultsPeptides));
 		assertTrue(options.decoyResultsPeptides().equals(decoyResultsPeptides));
 		assertTrue(options.resultsPsms() == null);
 		assertTrue(options.decoyResultsPsms() == null);
-		assertTrue(options.loadModels().isEmpty());
+		assertTrue(options.loadModelFile().equals(loadModelFile));
 		assertTrue(options.mixmax());
 	}
 

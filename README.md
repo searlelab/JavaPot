@@ -8,7 +8,7 @@ JavaPot is a Java clone of Dr. Will Fondrie's mokapot main code path for Percola
 - Deterministic seeded behavior across fold splitting, training, and model selection.
 - Optional multithreaded fold training via `--max_workers`.
 - Percolator-style output headers by default, with optional mokapot-style output naming via `--output_format mokapot`.
-- Model persistence with `--write_model_files` and `--load_models`.
+- Model persistence with `--write_model_files` / `--weights` and `--load_models` / `--init-weights`.
 - Confidence output tables written with `<pin_name>` prefixes (for example, `sample.peptides.tsv`).
 
 ## Requirements
@@ -49,7 +49,8 @@ Options:
                         The name of the feature to use as the initial direction for ranking PSMs.
   --subset_max_train SUBSET_MAX_TRAIN
                         Maximum number of PSMs to use during the training of each of the cross validation folds in the model.
-  --write_model_files   Save the models learned by javapot as Java serialized model objects.
+  --write_model_files   Save learned fold models to <pin_base>.model.tsv in --dest_dir.
+  --weights PATH        Save learned fold models to PATH (Percolator-compatible alias).
   --write_psm_files     Write target PSM output files in addition to peptide files.
   --write_decoy_files   Write decoy peptide/PSM forensic output files.
   --mixmax, --post-processing-mix-max
@@ -62,8 +63,8 @@ Options:
                         Write target PSM output to PATH (relative to current working directory).
   --decoy-results-psms PATH
                         Write decoy PSM output to PATH (relative to current working directory).
-  --load_models LOAD_MODELS [LOAD_MODELS ...]
-                        Load previously saved models and skip model training. Number of models must match --folds.
+  --load_models PATH, --init-weights PATH    
+                        Load Percolator-style text model file and skip model training.
   --folds FOLDS         Number of cross-validation folds. Default: 3.
 ```
 
@@ -82,6 +83,8 @@ JavaPotOptions options = new JavaPotOptions(
     0.01,
     Path.of("targets.peptides.tsv"),
     Path.of("decoys.peptides.tsv"),
+    Path.of("saved.model.tsv"),
+    Path.of("loaded.model.tsv"),
     true // mixmax
 );
 

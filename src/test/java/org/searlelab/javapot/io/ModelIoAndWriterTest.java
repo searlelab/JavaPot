@@ -5,7 +5,6 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import java.io.ObjectOutputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
@@ -20,11 +19,11 @@ class ModelIoAndWriterTest {
 	Path tmp;
 
 	@Test
-	void savesAndLoadsModelsRoundTrip() {
+	void savesAndLoadsModelsRoundTrip() throws Exception {
 		PercolatorFoldModel model = new PercolatorFoldModel(
 			new String[]{"f1", "f2"},
-			new double[]{0.0, 0.0},
-			new double[]{1.0, 1.0},
+			new double[]{10.0, -2.0},
+			new double[]{2.0, 4.0},
 			new LinearSvmModel(new double[]{1.0, -1.0}, 0.5, 1.0, 1.0),
 			"f1",
 			99,
@@ -32,25 +31,27 @@ class ModelIoAndWriterTest {
 			1
 		);
 
-		ModelIO.saveModels(List.of(model), tmp);
-		Path file = tmp.resolve("javapot.model_fold-1.bin");
+		Path file = tmp.resolve("roundtrip.model.tsv");
+		ModelIO.saveModels(List.of(model), file);
 		assertTrue(Files.exists(file));
+		List<String> lines = Files.readAllLines(file);
+		assertEquals(4, lines.size());
+		assertTrue(lines.get(0).startsWith("# javapot_meta\tfold=1"));
+		assertEquals("f1\tf2\tm0", lines.get(1));
 
-		List<PercolatorFoldModel> loaded = ModelIO.loadModels(List.of(file));
+		List<PercolatorFoldModel> loaded = ModelIO.loadModels(file);
 		assertEquals(1, loaded.size());
 		PercolatorFoldModel restored = loaded.get(0);
 		assertEquals(1, restored.fold());
 		assertEquals("f1", restored.bestFeature());
-		assertArrayEquals(new double[]{2.5}, restored.predict(new double[][]{{3.0, 1.0}}), 1e-12);
+		assertArrayEquals(new double[]{0.5}, restored.predict(new double[][]{{12.0, 2.0}}), 1e-12);
 	}
 
 	@Test
-	void loadModelsRejectsUnexpectedSerializedType() throws Exception {
-		Path bad = tmp.resolve("bad.bin");
-		try (ObjectOutputStream oos = new ObjectOutputStream(Files.newOutputStream(bad))) {
-			oos.writeObject("not a model");
-		}
-		assertThrows(RuntimeException.class, () -> ModelIO.loadModels(List.of(bad)));
+	void loadModelsRejectsInvalidTextShape() throws Exception {
+		Path bad = tmp.resolve("bad.model.txt");
+		Files.writeString(bad, "f1\tf2\tm0\n1\t2\t3\n");
+		assertThrows(RuntimeException.class, () -> ModelIO.loadModels(bad));
 	}
 
 	@Test
@@ -65,12 +66,12 @@ class ModelIoAndWriterTest {
 			true,
 			1
 		);
-		Path missingDir = tmp.resolve("does/not/exist");
-		assertThrows(RuntimeException.class, () -> ModelIO.saveModels(List.of(model), missingDir));
+		Path missingFile = tmp.resolve("does/not/exist/model.tsv");
+		assertThrows(RuntimeException.class, () -> ModelIO.saveModels(List.of(model), missingFile));
 	}
 
 	@Test
-	void loadModelsOrdersByEmbeddedFoldIndex() throws Exception {
+	void loadModelsReadsSerialFoldBlocksFromSingleFile() throws Exception {
 		PercolatorFoldModel foldTwo = new PercolatorFoldModel(
 			new String[]{"f1"},
 			new double[]{0.0},
@@ -91,53 +92,30 @@ class ModelIoAndWriterTest {
 			true,
 			1
 		);
-		Path m2 = tmp.resolve("m2.bin");
-		Path m1 = tmp.resolve("m1.bin");
-		try (ObjectOutputStream oos = new ObjectOutputStream(Files.newOutputStream(m2))) {
-			oos.writeObject(foldTwo);
-		}
-		try (ObjectOutputStream oos = new ObjectOutputStream(Files.newOutputStream(m1))) {
-			oos.writeObject(foldOne);
-		}
+		Path file = tmp.resolve("serial.model.tsv");
+		ModelIO.saveModels(List.of(foldOne, foldTwo), file);
 
-		List<PercolatorFoldModel> loaded = ModelIO.loadModels(List.of(m2, m1));
+		List<PercolatorFoldModel> loaded = ModelIO.loadModels(file);
 		assertEquals(2, loaded.size());
 		assertEquals(1, loaded.get(0).fold());
 		assertEquals(2, loaded.get(1).fold());
 	}
 
 	@Test
-	void loadModelsRejectsDuplicateFoldIndex() throws Exception {
-		PercolatorFoldModel foldOneA = new PercolatorFoldModel(
-			new String[]{"f1"},
-			new double[]{0.0},
-			new double[]{1.0},
-			new LinearSvmModel(new double[]{1.0}, 0.0, 1.0, 1.0),
-			"f1",
-			5,
-			true,
-			1
+	void loadModelsSkipsPercolatorCommentPreamble() throws Exception {
+		Path file = tmp.resolve("commented.model.txt");
+		Files.writeString(
+			file,
+			"# This file contains the weights from each cross validation bin from percolator training\n" +
+				"# First line is the feature names, followed by normalized weights, and the raw weights of bin 1\n" +
+				"# This is repeated for the other bins\n" +
+				"f1\tm0\n" +
+				"1.0\t0.5\n" +
+				"0.2\t-1.0\n"
 		);
-		PercolatorFoldModel foldOneB = new PercolatorFoldModel(
-			new String[]{"f1"},
-			new double[]{0.0},
-			new double[]{1.0},
-			new LinearSvmModel(new double[]{2.0}, 0.0, 1.0, 1.0),
-			"f1",
-			5,
-			true,
-			1
-		);
-		Path a = tmp.resolve("dup-a.bin");
-		Path b = tmp.resolve("dup-b.bin");
-		try (ObjectOutputStream oos = new ObjectOutputStream(Files.newOutputStream(a))) {
-			oos.writeObject(foldOneA);
-		}
-		try (ObjectOutputStream oos = new ObjectOutputStream(Files.newOutputStream(b))) {
-			oos.writeObject(foldOneB);
-		}
-
-		assertThrows(RuntimeException.class, () -> ModelIO.loadModels(List.of(a, b)));
+		List<PercolatorFoldModel> loaded = ModelIO.loadModels(file);
+		assertEquals(1, loaded.size());
+		assertArrayEquals(new double[]{0.0}, loaded.get(0).predict(new double[][]{{5.0}}), 1e-12);
 	}
 
 	@Test
@@ -151,6 +129,26 @@ class ModelIoAndWriterTest {
 		assertThrows(
 			RuntimeException.class,
 			() -> TsvWriter.write(missingParent, List.of("h"), List.<String[]>of(new String[]{"x"}))
+		);
+	}
+
+	@Test
+	void defaultModelPathDropsPinLikeExtensions() {
+		assertEquals(
+			Path.of("/tmp/out/sample.model.tsv"),
+			ModelIO.defaultModelPath(Path.of("sample.pin"), Path.of("/tmp/out"))
+		);
+		assertEquals(
+			Path.of("/tmp/out/sample.model.tsv"),
+			ModelIO.defaultModelPath(Path.of("sample.tsv"), Path.of("/tmp/out"))
+		);
+		assertEquals(
+			Path.of("/tmp/out/sample.model.tsv"),
+			ModelIO.defaultModelPath(Path.of("sample.txt"), Path.of("/tmp/out"))
+		);
+		assertEquals(
+			Path.of("/tmp/out/sample.raw.model.tsv"),
+			ModelIO.defaultModelPath(Path.of("sample.raw"), Path.of("/tmp/out"))
 		);
 	}
 }
