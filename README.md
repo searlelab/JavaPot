@@ -1,6 +1,6 @@
 # JavaPot
 
-JavaPot is a Java clone of Dr. Will Fondrie's mokapot main code path for Percolator-style semisupervised peptide detection. It focuses on deterministic, high-throughput rescoring of tab-delimited PIN files while maintaining close algorithmic behavior to mokapot/Percolator. It also borrows certain features directly from Percolator, such as mixmax mode and PEP estimation.
+JavaPot is a Java clone of Dr. Will Fondrie's mokapot main code path for Percolator-style semisupervised peptide detection. It focuses on deterministic, high-throughput rescoring of tab-delimited PIN files while maintaining close algorithmic behavior to mokapot/Percolator. It also borrows certain features directly from Percolator, such as mixmax mode, PEP estimation with splines, and a more robust cross-validation approach.
 
 ## Capabilities
 - Percolator-style semisupervised learning with a linear support vector machine classifier.
