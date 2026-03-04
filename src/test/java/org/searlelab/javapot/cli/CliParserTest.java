@@ -2,6 +2,7 @@ package org.searlelab.javapot.cli;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -16,14 +17,21 @@ class CliParserTest {
 	void parsesDefaultsAndPositionalPin() {
 		CliConfig cfg = CliParser.parse(new String[]{"/tmp/test.pin"});
 		assertEquals(Path.of("/tmp/test.pin"), cfg.pinFile());
-		assertEquals(Path.of("."), cfg.destDir());
+		assertEquals(Path.of("/tmp"), cfg.destDir());
 		assertEquals(3, cfg.maxWorkers());
 		assertEquals(OutputFormat.PERCOLATOR, cfg.outputFormat());
+		assertFalse(cfg.quiet());
 		assertEquals(0.01, cfg.trainFdr());
 		assertEquals(0.01, cfg.testFdr());
 		assertEquals(10, cfg.maxIter());
 		assertEquals(1L, cfg.seed());
 		assertEquals(3, cfg.folds());
+		assertFalse(cfg.writePsmFiles());
+		assertFalse(cfg.writeDecoyFiles());
+		assertNull(cfg.resultsPeptides());
+		assertNull(cfg.decoyResultsPeptides());
+		assertNull(cfg.resultsPsms());
+		assertNull(cfg.decoyResultsPsms());
 		assertTrue(cfg.loadModels().isEmpty());
 		assertFalse(cfg.mixmax());
 	}
@@ -31,6 +39,11 @@ class CliParserTest {
 	@Test
 	void rejectsUnknownOption() {
 		assertThrows(IllegalArgumentException.class, () -> CliParser.parse(new String[]{"--nope", "/tmp/test.pin"}));
+	}
+
+	@Test
+	void parseHelpThrowsHelpRequested() {
+		assertThrows(CliParser.HelpRequestedException.class, () -> CliParser.parse(new String[]{"--help"}));
 	}
 
 	@Test
@@ -74,6 +87,7 @@ class CliParserTest {
 			"input.pin",
 			"-d", "/tmp/out",
 			"-w", "3",
+			"--quiet",
 			"--train_fdr", "0.02",
 			"--test_fdr", "0.03",
 			"--max_iter", "20",
@@ -81,13 +95,16 @@ class CliParserTest {
 			"--direction", "featA",
 			"--subset_max_train", "777",
 			"--output_format", "mokapot",
+			"--write_psm_files",
+			"--write_decoy_files",
 			"--mixmax",
-			"--save_models",
+			"--write_model_files",
 			"--folds", "5"
 		});
 		assertEquals(Path.of("input.pin"), cfg.pinFile());
 		assertEquals(Path.of("/tmp/out"), cfg.destDir());
 		assertEquals(3, cfg.maxWorkers());
+		assertTrue(cfg.quiet());
 		assertEquals(0.02, cfg.trainFdr());
 		assertEquals(0.03, cfg.testFdr());
 		assertEquals(20, cfg.maxIter());
@@ -95,9 +112,26 @@ class CliParserTest {
 		assertEquals("featA", cfg.direction());
 		assertEquals(777, cfg.subsetMaxTrain());
 		assertEquals(OutputFormat.MOKAPOT, cfg.outputFormat());
-		assertTrue(cfg.saveModels());
+		assertTrue(cfg.writeModelFiles());
+		assertTrue(cfg.writePsmFiles());
+		assertTrue(cfg.writeDecoyFiles());
 		assertEquals(5, cfg.folds());
 		assertTrue(cfg.mixmax());
+	}
+
+	@Test
+	void parsesPercolatorOutputOverrides() {
+		CliConfig cfg = CliParser.parse(new String[]{
+			"input.pin",
+			"--results-peptides", "out/target_peptides.tsv",
+			"--decoy-results-peptides", "out/decoy_peptides.tsv",
+			"--results-psms", "out/target_psms.tsv",
+			"--decoy-results-psms", "out/decoy_psms.tsv"
+		});
+		assertEquals(Path.of("out/target_peptides.tsv"), cfg.resultsPeptides());
+		assertEquals(Path.of("out/decoy_peptides.tsv"), cfg.decoyResultsPeptides());
+		assertEquals(Path.of("out/target_psms.tsv"), cfg.resultsPsms());
+		assertEquals(Path.of("out/decoy_psms.tsv"), cfg.decoyResultsPsms());
 	}
 
 	@Test
@@ -121,6 +155,8 @@ class CliParserTest {
 		assertThrows(IllegalArgumentException.class, () -> CliParser.parse(new String[]{"input.pin", "--train_fdr", "x"}));
 		assertThrows(IllegalArgumentException.class, () -> CliParser.parse(new String[]{"input.pin", "--load_models"}));
 		assertThrows(IllegalArgumentException.class, () -> CliParser.parse(new String[]{"input.pin", "--output_format", "foo"}));
+		assertThrows(IllegalArgumentException.class, () -> CliParser.parse(new String[]{"input.pin", "--results-peptides"}));
+		assertThrows(IllegalArgumentException.class, () -> CliParser.parse(new String[]{"input.pin", "--results-psms"}));
 	}
 
 	@Test
@@ -135,9 +171,47 @@ class CliParserTest {
 		}
 		String help = baos.toString();
 		assertTrue(help.contains("Usage: javapot"));
+		assertTrue(help.contains("--help"));
 		assertTrue(help.contains("--train_fdr"));
 		assertTrue(help.contains("--output_format"));
 		assertTrue(help.contains("--mixmax"));
+		assertTrue(help.contains("--post-processing-mix-max"));
+		assertTrue(help.contains("--quiet"));
+		assertTrue(help.contains("--write_model_files"));
+		assertTrue(help.contains("--write_psm_files"));
+		assertTrue(help.contains("--write_decoy_files"));
+		assertTrue(help.contains("--results-peptides"));
+		assertTrue(help.contains("--decoy-results-psms"));
+	}
+
+	@Test
+	void mainWithNoArgsPrintsHelp() {
+		PrintStream original = System.out;
+		ByteArrayOutputStream baos = new ByteArrayOutputStream();
+		try {
+			System.setOut(new PrintStream(baos));
+			JavaPotCli.main(new String[0]);
+		} finally {
+			System.setOut(original);
+		}
+		String help = baos.toString();
+		assertTrue(help.contains("Usage: javapot"));
+		assertTrue(help.contains("--help"));
+	}
+
+	@Test
+	void mainWithHelpArgPrintsHelp() {
+		PrintStream original = System.out;
+		ByteArrayOutputStream baos = new ByteArrayOutputStream();
+		try {
+			System.setOut(new PrintStream(baos));
+			JavaPotCli.main(new String[]{"--help"});
+		} finally {
+			System.setOut(original);
+		}
+		String help = baos.toString();
+		assertTrue(help.contains("Usage: javapot"));
+		assertTrue(help.contains("--help"));
 	}
 
 	@Test

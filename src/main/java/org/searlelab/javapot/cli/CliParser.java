@@ -9,6 +9,12 @@ import java.util.List;
  * It also enforces argument constraints such as exactly one PIN input and allowed numeric ranges.
  */
 public final class CliParser {
+	public static final class HelpRequestedException extends RuntimeException {
+		public HelpRequestedException() {
+			super("Help requested");
+		}
+	}
+
 	private CliParser() {
 	}
 
@@ -16,16 +22,23 @@ public final class CliParser {
 	 * Parses command-line arguments into a validated runtime configuration.
 	 */
 	public static CliConfig parse(String[] args) {
-		Path destDir = Path.of(".");
+		Path destDir = null;
 		Integer maxWorkers = null;
 		OutputFormat outputFormat = OutputFormat.PERCOLATOR;
+		boolean quiet = false;
 		double trainFdr = CliConfig.DEFAULT_FDR;
 		double testFdr = CliConfig.DEFAULT_FDR;
 		int maxIter = CliConfig.DEFAULT_MAX_ITER;
 		long seed = CliConfig.DEFAULT_SEED;
 		String direction = null;
 		Integer subsetMaxTrain = null;
-		boolean saveModels = false;
+		boolean writeModelFiles = false;
+		boolean writePsmFiles = false;
+		boolean writeDecoyFiles = false;
+		Path resultsPeptides = null;
+		Path decoyResultsPeptides = null;
+		Path resultsPsms = null;
+		Path decoyResultsPsms = null;
 		List<Path> loadModels = new ArrayList<>();
 		int folds = CliConfig.DEFAULT_FOLDS;
 		boolean mixmax = false;
@@ -35,8 +48,7 @@ public final class CliParser {
 			String arg = args[i];
 			switch (arg) {
 				case "-h", "--help" -> {
-					printHelp();
-					System.exit(0);
+					throw new HelpRequestedException();
 				}
 				case "-d", "--dest_dir" -> {
 					destDir = Path.of(requireValue(args, ++i, arg));
@@ -46,6 +58,9 @@ public final class CliParser {
 				}
 				case "--output_format" -> {
 					outputFormat = OutputFormat.parse(requireValue(args, ++i, arg));
+				}
+				case "--quiet" -> {
+					quiet = true;
 				}
 				case "--train_fdr" -> {
 					trainFdr = parseDouble(requireValue(args, ++i, arg), arg);
@@ -65,8 +80,26 @@ public final class CliParser {
 				case "--subset_max_train" -> {
 					subsetMaxTrain = parseInt(requireValue(args, ++i, arg), arg);
 				}
-				case "--save_models" -> {
-					saveModels = true;
+				case "--write_model_files" -> {
+					writeModelFiles = true;
+				}
+				case "--write_psm_files" -> {
+					writePsmFiles = true;
+				}
+				case "--write_decoy_files" -> {
+					writeDecoyFiles = true;
+				}
+				case "--results-peptides" -> {
+					resultsPeptides = Path.of(requireValue(args, ++i, arg));
+				}
+				case "--decoy-results-peptides" -> {
+					decoyResultsPeptides = Path.of(requireValue(args, ++i, arg));
+				}
+				case "--results-psms" -> {
+					resultsPsms = Path.of(requireValue(args, ++i, arg));
+				}
+				case "--decoy-results-psms" -> {
+					decoyResultsPsms = Path.of(requireValue(args, ++i, arg));
 				}
 				case "--mixmax", "--post-processing-mix-max" -> {
 					mixmax = true;
@@ -100,6 +133,7 @@ public final class CliParser {
 		if (lower.endsWith(".xml") || lower.endsWith(".pepxml")) {
 			throw new IllegalArgumentException("XML/PepXML input is not supported. Provide a single PIN file.");
 		}
+		Path resolvedDestDir = destDir != null ? destDir : defaultOutputDir(pinFile);
 
 		if (maxWorkers != null && maxWorkers < 1) {
 			throw new IllegalArgumentException("--max_workers must be >= 1");
@@ -123,16 +157,23 @@ public final class CliParser {
 
 		return new CliConfig(
 			pinFile,
-			destDir,
+			resolvedDestDir,
 			resolvedMaxWorkers,
 			outputFormat,
+			quiet,
 			trainFdr,
 			testFdr,
 			maxIter,
 			seed,
 			direction,
 			subsetMaxTrain,
-			saveModels,
+			writeModelFiles,
+			writePsmFiles,
+			writeDecoyFiles,
+			resultsPeptides,
+			decoyResultsPeptides,
+			resultsPsms,
+			decoyResultsPsms,
 			List.copyOf(loadModels),
 			folds,
 			mixmax
@@ -140,18 +181,20 @@ public final class CliParser {
 	}
 
 	/**
-	 * Prints supported CLI options and exits guidance text.
+	 * Prints supported CLI options and usage guidance text.
 	 */
 	public static void printHelp() {
 		String help = """
 			Usage: javapot [options] <pin_file>
 			Options:
+			  -h, --help            Show this help message and exit.
 			  -d DEST_DIR, --dest_dir DEST_DIR
-			                        The directory in which to write the result files. Defaults to the current working directory
+			                        The directory in which to write the result files. Defaults to the input PIN directory.
 			  -w MAX_WORKERS, --max_workers MAX_WORKERS
 			                        The number of processes to use for model training. Defaults to --folds when omitted. Note that using more than one worker will result in garbled logging messages.
 			  --output_format OUTPUT_FORMAT
 			                        Output TSV schema to write: percolator (default) or mokapot.
+			  --quiet               Suppress progress/status logging output.
 			  --train_fdr TRAIN_FDR
 			                        The maximum false discovery rate at which to consider a target PSM as a positive example during model training.
 			  --test_fdr TEST_FDR   The false-discovery rate threshold at which to evaluate the learned models.
@@ -161,13 +204,33 @@ public final class CliParser {
 			                        The name of the feature to use as the initial direction for ranking PSMs.
 			  --subset_max_train SUBSET_MAX_TRAIN
 			                        Maximum number of PSMs to use during the training of each of the cross validation folds in the model.
-			  --save_models         Save the models learned by javapot as Java serialized model objects.
-			  --mixmax              Use Percolator mix-max post-processing for q-value and PEP assignment.
+			  --write_model_files   Save the models learned by javapot as Java serialized model objects.
+			  --write_psm_files     Write target PSM output files in addition to peptide files.
+			  --write_decoy_files   Write decoy peptide/PSM forensic output files.
+			  --mixmax, --post-processing-mix-max
+			                        Use Percolator mix-max post-processing for q-value and PEP assignment.
+			  --results-peptides PATH
+			                        Write target peptide output to PATH (relative to current working directory).
+			  --decoy-results-peptides PATH
+			                        Write decoy peptide output to PATH (relative to current working directory).
+			  --results-psms PATH
+			                        Write target PSM output to PATH (relative to current working directory).
+			  --decoy-results-psms PATH
+			                        Write decoy PSM output to PATH (relative to current working directory).
 			  --load_models LOAD_MODELS [LOAD_MODELS ...]
 			                        Load previously saved models and skip model training. Number of models must match --folds.
 			  --folds FOLDS         Number of cross-validation folds. Default: 3.
 		""";
 		System.out.println(help);
+	}
+
+	private static Path defaultOutputDir(Path pinFile) {
+		Path absolutePin = pinFile.toAbsolutePath().normalize();
+		Path parent = absolutePin.getParent();
+		if (parent != null) {
+			return parent;
+		}
+		return Path.of(".").toAbsolutePath().normalize();
 	}
 
 	private static String requireValue(String[] args, int idx, String opt) {

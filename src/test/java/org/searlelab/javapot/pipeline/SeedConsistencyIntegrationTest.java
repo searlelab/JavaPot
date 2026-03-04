@@ -71,11 +71,12 @@ class SeedConsistencyIntegrationTest {
 			pinFile.toString(),
 			"--dest_dir", outputDir.toString(),
 			"--max_workers", "2",
+			"--write_psm_files",
 			"--seed", Long.toString(seed)
 		});
 
-		Path psmFile = outputDir.resolve("targets.psms.tsv");
-		Path peptideFile = outputDir.resolve("targets.peptides.tsv");
+		Path psmFile = outputDir.resolve("10k_psms_test.psms.tsv");
+		Path peptideFile = outputDir.resolve("10k_psms_test.peptides.tsv");
 		RunSummary summary = new RunSummary(
 			countAtThreshold(psmFile, EVAL_FDR),
 			countAtThreshold(peptideFile, EVAL_FDR),

@@ -27,12 +27,13 @@ class OutputFormatIntegrationTest {
 		JavaPotCli.main(new String[]{
 			pinFile.toString(),
 			"--dest_dir", outputDir.toString(),
+			"--write_psm_files",
 			"--max_iter", "2",
 			"--seed", "1"
 		});
 
-		assertEquals(PERCOLATOR_HEADER, Files.readAllLines(outputDir.resolve("targets.psms.tsv")).get(0));
-		assertEquals(PERCOLATOR_HEADER, Files.readAllLines(outputDir.resolve("targets.peptides.tsv")).get(0));
+		assertEquals(PERCOLATOR_HEADER, Files.readAllLines(outputDir.resolve("10k_psms_test.psms.tsv")).get(0));
+		assertEquals(PERCOLATOR_HEADER, Files.readAllLines(outputDir.resolve("10k_psms_test.peptides.tsv")).get(0));
 	}
 
 	@Test
@@ -44,13 +45,14 @@ class OutputFormatIntegrationTest {
 		JavaPotCli.main(new String[]{
 			pinFile.toString(),
 			"--dest_dir", outputDir.toString(),
+			"--write_psm_files",
 			"--max_iter", "2",
 			"--seed", "1",
 			"--output_format", "mokapot"
 		});
 
-		String psmHeader = Files.readAllLines(outputDir.resolve("targets.psms.tsv")).get(0);
-		String peptideHeader = Files.readAllLines(outputDir.resolve("targets.peptides.tsv")).get(0);
+		String psmHeader = Files.readAllLines(outputDir.resolve("10k_psms_test.psms.tsv")).get(0);
+		String peptideHeader = Files.readAllLines(outputDir.resolve("10k_psms_test.peptides.tsv")).get(0);
 		assertTrue(psmHeader.contains("mokapot_qvalue"));
 		assertTrue(psmHeader.contains("mokapot_score"));
 		assertTrue(peptideHeader.contains("mokapot_qvalue"));

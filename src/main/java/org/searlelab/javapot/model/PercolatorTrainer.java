@@ -42,7 +42,7 @@ public final class PercolatorTrainer {
 		if (countOnes(start.labels()) == 0) {
 			throw new RuntimeException("No PSMs accepted at train_fdr=" + params.trainFdr());
 		}
-		System.out.println("[INFO] \t- Selected feature '" + start.bestFeature() + "' with " + start.bestPass() + " PSMs at q<=" + params.trainFdr() + ".");
+		log(params, "Fold " + fold + " selected feature '" + start.bestFeature() + "' with " + start.bestPass() + " PSMs at q<=" + params.trainFdr() + ".");
 
 		StandardScaler scaler = new StandardScaler();
 		double[][] norm = scaler.fitTransform(raw);
@@ -58,8 +58,7 @@ public final class PercolatorTrainer {
 		TrainSubset cvSubset = filterLabeled(normShuffled, startShuffled);
 		int cvSeed = rng.nextInt(1, 1_000_000);
 		ClassWeightPair pair = ClassWeightGridSearch.select(cvSubset.x(), cvSubset.y01(), cvSeed);
-		System.out.println("[INFO] \t- class_weight = {0: " + pair.negative() + ", 1: " + pair.positive() + "}");
-		System.out.println("[INFO] Beginning training loop...");
+		log(params, "Fold " + fold + " class_weight = {0: " + pair.negative() + ", 1: " + pair.positive() + "}");
 
 		int[] target = Arrays.copyOf(startShuffled, startShuffled.length);
 		int[] numPassed = new int[params.maxIter()];
@@ -83,7 +82,7 @@ public final class PercolatorTrainer {
 			);
 			target = takeLabels(labelsOriginal, shuffledIdx);
 			numPassed[i] = countOnes(target);
-			System.out.println("[INFO] \t- Iteration " + i + ": " + numPassed[i] + " training PSMs passed.");
+			log(params, "Fold " + fold + " Iteration " + (i + 1) + ": " + numPassed[i] + " training PSMs passed.");
 			if (numPassed[i] == 0) {
 				degradedDuringIterations = true;
 				break;
@@ -97,9 +96,9 @@ public final class PercolatorTrainer {
 		int lastPassed = numPassed[numPassed.length - 1];
 		boolean underperformed = degradedDuringIterations || lastPassed <= start.bestPass() || lastPassed <= startPositive;
 		if (underperformed) {
-			System.out.println("[WARN] \t- Fold " + fold + ": model underperformed best feature; keeping model and deferring to fallback checks.");
+			log(params, "Fold " + fold + " model underperformed best feature; keeping model and deferring to fallback checks.");
 		}
-		System.out.println("[INFO] Done training.");
+		log(params, "Finished training Fold " + fold + ".");
 
 		PercolatorFoldModel foldModel = new PercolatorFoldModel(
 			featureNames,
@@ -284,6 +283,13 @@ public final class PercolatorTrainer {
 			out[i] = x[i][featureIdx];
 		}
 		return out;
+	}
+
+	private static void log(TrainingParams params, String message) {
+		if (params.quiet()) {
+			return;
+		}
+		System.out.println(message);
 	}
 
 	/**

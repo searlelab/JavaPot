@@ -26,12 +26,13 @@ class LoadModelsOrderingIntegrationTest {
 			"--dest_dir", trainDir.toString(),
 			"--output_format", "mokapot",
 			"--max_workers", "1",
+			"--write_psm_files",
 			"--folds", "2",
 			"--max_iter", "2",
 			"--seed", "7",
 			"--train_fdr", "0.5",
 			"--test_fdr", "0.5",
-			"--save_models"
+			"--write_model_files"
 		});
 
 		Path model1 = trainDir.resolve("javapot.model_fold-1.bin");
@@ -49,6 +50,7 @@ class LoadModelsOrderingIntegrationTest {
 			"--dest_dir", orderedOut.toString(),
 			"--output_format", "mokapot",
 			"--max_workers", "1",
+			"--write_psm_files",
 			"--folds", "2",
 			"--max_iter", "2",
 			"--seed", "7",
@@ -62,6 +64,7 @@ class LoadModelsOrderingIntegrationTest {
 			"--dest_dir", reversedOut.toString(),
 			"--output_format", "mokapot",
 			"--max_workers", "1",
+			"--write_psm_files",
 			"--folds", "2",
 			"--max_iter", "2",
 			"--seed", "7",
@@ -70,8 +73,8 @@ class LoadModelsOrderingIntegrationTest {
 			"--load_models", model2.toString(), model1.toString()
 		});
 
-		assertEquals(-1L, Files.mismatch(orderedOut.resolve("targets.psms.tsv"), reversedOut.resolve("targets.psms.tsv")));
-		assertEquals(-1L, Files.mismatch(orderedOut.resolve("targets.peptides.tsv"), reversedOut.resolve("targets.peptides.tsv")));
+		assertEquals(-1L, Files.mismatch(orderedOut.resolve("load_models.psms.tsv"), reversedOut.resolve("load_models.psms.tsv")));
+		assertEquals(-1L, Files.mismatch(orderedOut.resolve("load_models.peptides.tsv"), reversedOut.resolve("load_models.peptides.tsv")));
 	}
 
 	private static Path writeSyntheticPin(Path file) throws IOException {

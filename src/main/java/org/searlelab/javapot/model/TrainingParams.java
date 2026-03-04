@@ -11,6 +11,7 @@ public record TrainingParams(
 	int maxIter,
 	String direction,
 	long seed,
-	ConfidenceMode confidenceMode
+	ConfidenceMode confidenceMode,
+	boolean quiet
 ) {
 }

@@ -60,10 +60,10 @@ public final class JavaPotRunner {
 	 * Executes the full JavaPot pipeline for one parsed CLI configuration.
 	 */
 	public static void run(CliConfig config) {
-		System.out.println("[INFO] JavaPot starting");
+		log(config, "JavaPot starting");
 		PsmDataset dataset = PinFileParser.read(config.pinFile());
-		ensureDestDir(config.destDir());
-		printDatasetInfo(dataset);
+		printDatasetInfo(dataset, config);
+		OutputPlan outputPlan = buildOutputPlan(config);
 
 		DeterministicRandom rng = new DeterministicRandom(config.seed());
 		int[][] folds = FoldSplitter.split(dataset, config.folds(), rng, config.pinFile().getFileName().toString());
@@ -82,7 +82,15 @@ public final class JavaPotRunner {
 		ConfidenceMode confidenceMode = config.mixmax() ? ConfidenceMode.MIXMAX : ConfidenceMode.TDC;
 
 		double[] scores = predictScores(dataset, folds, models, config.testFdr());
-		double[] finalScores = maybeFallbackToBestFeature(dataset, models, scores, config.testFdr(), confidenceMode, config.seed());
+		double[] finalScores = maybeFallbackToBestFeature(
+			dataset,
+			models,
+			scores,
+			config.testFdr(),
+			confidenceMode,
+			config.seed(),
+			config.quiet()
+		);
 
 		OutputTables tables = assignConfidenceAndBuildOutputs(
 			dataset,
@@ -93,20 +101,20 @@ public final class JavaPotRunner {
 			config.seed()
 		);
 
-		Path psmPath = config.destDir().resolve("targets.psms.tsv");
-		Path peptidePath = config.destDir().resolve("targets.peptides.tsv");
-		TsvWriter.write(psmPath, tables.psmHeader(), tables.psmRows());
-		TsvWriter.write(peptidePath, tables.peptideHeader(), tables.peptideRows());
+		List<Path> writtenPaths = writeOutputTables(tables, outputPlan);
 
-		if (config.saveModels()) {
+		if (config.writeModelFiles()) {
+			ensureDestDir(config.destDir());
 			ModelIO.saveModels(models, config.destDir());
 		}
 
-		System.out.println("[INFO] Found " + tables.peptidesAtThreshold() + " peptides with q<=" + config.testFdr());
-		System.out.println("[INFO] Wrote " + psmPath + " and " + peptidePath);
+		log(config, "Found " + tables.peptidesAtThreshold() + " peptides with q<=" + config.testFdr());
+		if (!writtenPaths.isEmpty()) {
+			log(config, "Wrote " + joinPaths(writtenPaths));
+		}
 	}
 
-	private static void printDatasetInfo(PsmDataset dataset) {
+	private static void printDatasetInfo(PsmDataset dataset, CliConfig config) {
 		boolean[] targets = dataset.rawTargets();
 		int targetCount = 0;
 		for (boolean target : targets) {
@@ -114,9 +122,9 @@ public final class JavaPotRunner {
 				targetCount++;
 			}
 		}
-		System.out.println("[INFO] Found " + dataset.size() + " total PSMs");
-		System.out.println("[INFO]   - " + targetCount + " target PSMs and " + (dataset.size() - targetCount) + " decoy PSMs detected.");
-		System.out.println("[INFO] Using " + dataset.featureCount() + " features: " + String.join(",", dataset.featureNames()));
+		log(config, "Found " + dataset.size() + " total PSMs");
+		log(config, "  - " + targetCount + " target PSMs and " + (dataset.size() - targetCount) + " decoy PSMs detected.");
+		log(config, "Using " + dataset.featureCount() + " features: " + String.join(",", dataset.featureNames()));
 	}
 
 	private static void ensureDestDir(Path destDir) {
@@ -127,13 +135,111 @@ public final class JavaPotRunner {
 		}
 	}
 
+	private static List<Path> writeOutputTables(OutputTables tables, OutputPlan plan) {
+		List<Path> written = new ArrayList<>(4);
+		writeIfRequested(plan.targetPsmPath(), tables.psmHeader(), tables.targetPsmRows(), written);
+		writeIfRequested(plan.targetPeptidePath(), tables.peptideHeader(), tables.targetPeptideRows(), written);
+		writeIfRequested(plan.decoyPsmPath(), tables.psmHeader(), tables.decoyPsmRows(), written);
+		writeIfRequested(plan.decoyPeptidePath(), tables.peptideHeader(), tables.decoyPeptideRows(), written);
+		return written;
+	}
+
+	private static void writeIfRequested(
+		Path path,
+		List<String> header,
+		List<String[]> rows,
+		List<Path> written
+	) {
+		if (path == null) {
+			return;
+		}
+		ensureParentDirectory(path);
+		TsvWriter.write(path, header, rows);
+		written.add(path);
+	}
+
+	private static void ensureParentDirectory(Path path) {
+		Path parent = path.toAbsolutePath().normalize().getParent();
+		if (parent == null) {
+			return;
+		}
+		try {
+			Files.createDirectories(parent);
+		} catch (Exception e) {
+			throw new RuntimeException("Unable to create output directory: " + parent, e);
+		}
+	}
+
+	private static OutputPlan buildOutputPlan(CliConfig config) {
+		if (hasExplicitOutputOverride(config)) {
+			return new OutputPlan(
+				config.resultsPsms(),
+				config.resultsPeptides(),
+				config.decoyResultsPsms(),
+				config.decoyResultsPeptides()
+			);
+		}
+
+		String base = pinOutputBaseName(config.pinFile());
+		Path targetPeptide = config.destDir().resolve(base + ".peptides.tsv");
+		Path targetPsm = config.writePsmFiles() ? config.destDir().resolve(base + ".psms.tsv") : null;
+		Path decoyPeptide = config.writeDecoyFiles() ? config.destDir().resolve(base + ".decoy_peptides.tsv") : null;
+		Path decoyPsm = (config.writeDecoyFiles() && config.writePsmFiles())
+			? config.destDir().resolve(base + ".decoy_psms.tsv")
+			: null;
+		return new OutputPlan(targetPsm, targetPeptide, decoyPsm, decoyPeptide);
+	}
+
+	private static boolean hasExplicitOutputOverride(CliConfig config) {
+		return config.resultsPeptides() != null ||
+			config.decoyResultsPeptides() != null ||
+			config.resultsPsms() != null ||
+			config.decoyResultsPsms() != null;
+	}
+
+	private static String pinOutputBaseName(Path pinFile) {
+		String fileName = pinFile.getFileName().toString();
+		String lower = fileName.toLowerCase();
+		if (lower.endsWith(".pin")) {
+			return fileName.substring(0, fileName.length() - 4);
+		}
+		if (lower.endsWith(".tsv")) {
+			return fileName.substring(0, fileName.length() - 4);
+		}
+		if (lower.endsWith(".txt")) {
+			return fileName.substring(0, fileName.length() - 4);
+		}
+		return fileName;
+	}
+
+	private static String joinPaths(List<Path> paths) {
+		if (paths.isEmpty()) {
+			return "";
+		}
+		StringBuilder sb = new StringBuilder();
+		for (int i = 0; i < paths.size(); i++) {
+			if (i > 0) {
+				sb.append(", ");
+			}
+			sb.append(paths.get(i));
+		}
+		return sb.toString();
+	}
+
+	private static void log(CliConfig config, String message) {
+		if (config.quiet()) {
+			return;
+		}
+		System.out.println(message);
+	}
+
 	private static List<PercolatorFoldModel> trainModels(
 		PsmDataset dataset,
 		int[][] folds,
 		CliConfig config,
 		DeterministicRandom rng
 	) {
-		System.out.println("[INFO] Splitting PSMs into " + config.folds() + " folds...");
+		log(config, "Splitting PSMs into " + config.folds() + " folds...");
 		List<Callable<FoldTrainingOutput>> tasks = new ArrayList<>(folds.length);
 		for (int fi = 0; fi < folds.length; fi++) {
 			int fold = fi + 1;
@@ -145,11 +251,12 @@ public final class JavaPotRunner {
 				config.maxIter(),
 				config.direction(),
 				foldSeed,
-				config.mixmax() ? ConfidenceMode.MIXMAX : ConfidenceMode.TDC
+				config.mixmax() ? ConfidenceMode.MIXMAX : ConfidenceMode.TDC,
+				config.quiet()
 			);
 			final int[] trainCopy = Arrays.copyOf(trainIdx, trainIdx.length);
 			tasks.add(() -> {
-				System.out.println("[INFO] === Analyzing Fold " + fold + " ===");
+				log(config, "Analyzing Fold " + fold + "...");
 				return PercolatorTrainer.trainFold(dataset, trainCopy, fold, params);
 			});
 		}
@@ -254,7 +361,8 @@ public final class JavaPotRunner {
 		double[] scores,
 		double testFdr,
 		ConfidenceMode confidenceMode,
-		long seed
+		long seed,
+		boolean quiet
 	) {
 		boolean skipDecoysPlusOne = confidenceMode == ConfidenceMode.MIXMAX;
 		int[] pred = LabelUpdater.updateLabels(
@@ -275,7 +383,9 @@ public final class JavaPotRunner {
 			}
 		}
 		if (best != null && best.bestFeaturePass() > predTotal) {
-			System.out.println("[WARN] Learned model did not improve over best feature. Falling back to best feature scoring.");
+			if (!quiet) {
+				System.out.println("Learned model did not improve over best feature. Falling back to best feature scoring.");
+			}
 			double[] fallback = dataset.featureColumn(best.bestFeature());
 			if (!best.bestFeatureDescending()) {
 				for (int i = 0; i < fallback.length; i++) {
@@ -309,49 +419,97 @@ public final class JavaPotRunner {
 		ConfidenceResult peptideConfidence = estimateConfidence(pepScores, pepTargets, confidenceMode, seed + 197L);
 
 		List<String> psmHeader;
-		List<String[]> psmRows;
+		List<String[]> targetPsmRows;
+		List<String[]> decoyPsmRows;
 		List<String> peptideHeader;
-		List<String[]> peptideRows;
+		List<String[]> targetPeptideRows;
+		List<String[]> decoyPeptideRows;
 		if (outputFormat == OutputFormat.MOKAPOT) {
 			psmHeader = mokapotHeader(dataset.columnGroups());
-			psmRows = buildMokapotRows(
+			targetPsmRows = buildMokapotRows(
 				dataset,
 				psmBest,
 				psmScores,
 				psmConfidence.qValues(),
 				psmConfidence.pepValues(),
-				psmHeader
+				psmHeader,
+				true
+			);
+			decoyPsmRows = buildMokapotRows(
+				dataset,
+				psmBest,
+				psmScores,
+				psmConfidence.qValues(),
+				psmConfidence.pepValues(),
+				psmHeader,
+				false
 			);
 			peptideHeader = psmHeader;
-			peptideRows = buildMokapotRows(
+			targetPeptideRows = buildMokapotRows(
 				dataset,
 				peptideBest,
 				pepScores,
 				peptideConfidence.qValues(),
 				peptideConfidence.pepValues(),
-				peptideHeader
+				peptideHeader,
+				true
 			);
-		} else {
-			psmHeader = PERCOLATOR_HEADER;
-			psmRows = buildPercolatorRows(
-				dataset,
-				psmBest,
-				psmScores,
-				psmConfidence.qValues(),
-				psmConfidence.pepValues()
-			);
-			peptideHeader = PERCOLATOR_HEADER;
-			peptideRows = buildPercolatorRows(
+			decoyPeptideRows = buildMokapotRows(
 				dataset,
 				peptideBest,
 				pepScores,
 				peptideConfidence.qValues(),
-				peptideConfidence.pepValues()
+				peptideConfidence.pepValues(),
+				peptideHeader,
+				false
+			);
+		} else {
+			psmHeader = PERCOLATOR_HEADER;
+			targetPsmRows = buildPercolatorRows(
+				dataset,
+				psmBest,
+				psmScores,
+				psmConfidence.qValues(),
+				psmConfidence.pepValues(),
+				true
+			);
+			decoyPsmRows = buildPercolatorRows(
+				dataset,
+				psmBest,
+				psmScores,
+				psmConfidence.qValues(),
+				psmConfidence.pepValues(),
+				false
+			);
+			peptideHeader = PERCOLATOR_HEADER;
+			targetPeptideRows = buildPercolatorRows(
+				dataset,
+				peptideBest,
+				pepScores,
+				peptideConfidence.qValues(),
+				peptideConfidence.pepValues(),
+				true
+			);
+			decoyPeptideRows = buildPercolatorRows(
+				dataset,
+				peptideBest,
+				pepScores,
+				peptideConfidence.qValues(),
+				peptideConfidence.pepValues(),
+				false
 			);
 		}
 		int peptidesAtThreshold = countTargetsAtThreshold(pepTargets, peptideConfidence.qValues(), evalFdr);
 
-		return new OutputTables(psmHeader, psmRows, peptideHeader, peptideRows, peptidesAtThreshold);
+		return new OutputTables(
+			psmHeader,
+			targetPsmRows,
+			decoyPsmRows,
+			peptideHeader,
+			targetPeptideRows,
+			decoyPeptideRows,
+			peptidesAtThreshold
+		);
 	}
 
 	private static ConfidenceResult estimateConfidence(
@@ -404,12 +562,13 @@ public final class JavaPotRunner {
 		double[] scores,
 		double[] qvals,
 		double[] peps,
-		List<String> header
+		List<String> header,
+		boolean targetsOnly
 	) {
 		List<String[]> out = new ArrayList<>(keptIdx.length);
 		for (int i = 0; i < keptIdx.length; i++) {
 			int rowIdx = keptIdx[i];
-			if (!dataset.targetAt(rowIdx)) {
+			if (dataset.targetAt(rowIdx) != targetsOnly) {
 				continue;
 			}
 			String[] row = new String[header.size()];
@@ -435,12 +594,13 @@ public final class JavaPotRunner {
 		int[] keptIdx,
 		double[] scores,
 		double[] qvals,
-		double[] peps
+		double[] peps,
+		boolean targetsOnly
 	) {
 		List<String[]> out = new ArrayList<>(keptIdx.length);
 		for (int i = 0; i < keptIdx.length; i++) {
 			int rowIdx = keptIdx[i];
-			if (!dataset.targetAt(rowIdx)) {
+			if (dataset.targetAt(rowIdx) != targetsOnly) {
 				continue;
 			}
 			String[] row = new String[PERCOLATOR_HEADER.size()];
@@ -573,10 +733,20 @@ public final class JavaPotRunner {
 	 */
 	private record OutputTables(
 		List<String> psmHeader,
-		List<String[]> psmRows,
+		List<String[]> targetPsmRows,
+		List<String[]> decoyPsmRows,
 		List<String> peptideHeader,
-		List<String[]> peptideRows,
+		List<String[]> targetPeptideRows,
+		List<String[]> decoyPeptideRows,
 		int peptidesAtThreshold
+	) {
+	}
+
+	private record OutputPlan(
+		Path targetPsmPath,
+		Path targetPeptidePath,
+		Path decoyPsmPath,
+		Path decoyPeptidePath
 	) {
 	}
 

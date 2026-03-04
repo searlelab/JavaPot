@@ -35,6 +35,7 @@ class ParityIntegrationTest {
 			PIN_FILE.toString(),
 			"--dest_dir", javaOut.toString(),
 			"--max_workers", "1",
+			"--write_psm_files",
 			"--seed", "1"
 		});
 
@@ -45,19 +46,39 @@ class ParityIntegrationTest {
 		int exit = runShell(sourceCmd, MOKAPOT_SOURCE);
 		Assumptions.assumeTrue(exit == 0, "Source mainline mokapot command failed");
 
-		Counts javaCounts = readCounts(javaOut.resolve("targets.psms.tsv"), javaOut.resolve("targets.peptides.tsv"));
+		Counts javaCounts = readCounts(javaOut.resolve("10k_psms_test.psms.tsv"), javaOut.resolve("10k_psms_test.peptides.tsv"));
 		Counts sourceCounts = readCounts(sourceOut.resolve("targets.psms.tsv"), sourceOut.resolve("targets.peptides.tsv"));
 
 		int psmDiff = Math.abs(javaCounts.psmAtFdr() - sourceCounts.psmAtFdr());
 		int pepDiff = Math.abs(javaCounts.peptideAtFdr() - sourceCounts.peptideAtFdr());
 		double peptideRelativeDiff = relativeDiff(javaCounts.peptideAtFdr(), sourceCounts.peptideAtFdr());
 
-		Set<String> javaPeptides = readPeptidesAtThreshold(javaOut.resolve("targets.peptides.tsv"), 0.01);
+		Set<String> javaPeptides = readPeptidesAtThreshold(javaOut.resolve("10k_psms_test.peptides.tsv"), 0.01);
 		Set<String> sourcePeptides = readPeptidesAtThreshold(sourceOut.resolve("targets.peptides.tsv"), 0.01);
 		double overlapInSource = overlapFraction(sourcePeptides, javaPeptides);
 		double overlapInJava = overlapFraction(javaPeptides, sourcePeptides);
 		double overlap = Math.min(overlapInSource, overlapInJava);
 
+		/*
+		 * Intentionally wider windows: count baselines shifted after File+Scan randomized fold assignment/repair
+		 * and TDC training skipDecoysPlusOne parity changes. Attribution experiment on 10k PIN (seed=1), q<=0.01:
+		 *
+		 * source baseline: PSM=461, peptides=289
+		 *
+		 * variant                              java_psm  java_peptide  psm_diff  pep_diff
+		 * b95ee94 (pre-mixmax)                 468       290           7         1
+		 * HEAD                                 512       302           51        13
+		 * HEAD + skipDecoysPlusOne off         502       306           41        17
+		 * HEAD + old FoldSplitter              433       283           28        6
+		 * HEAD + old peptide dedup key         512       302           51        13
+		 * HEAD + old FoldSplitter + skip off   468       290           7         1
+		 * HEAD + old FoldSplitter + old dedup  433       283           28        6
+		 * HEAD + skip off + old dedup          502       306           41        17
+		 * HEAD + old FoldSplitter + skip off
+		 *      + old dedup                     468       290           7         1
+		 *
+		 * This test keeps strict overlap/relative gates while allowing absolute count movement from those changes.
+		 */
 		assertTrue(pepDiff <= 25, "Peptide q<=0.01 difference too high: " + pepDiff);
 		assertTrue(psmDiff <= 60, "PSM q<=0.01 difference too high: " + psmDiff);
 		assertTrue(
@@ -88,6 +109,7 @@ class ParityIntegrationTest {
 			PIN_FILE.toString(),
 			"--dest_dir", javaOut.toString(),
 			"--max_workers", "1",
+			"--write_psm_files",
 			"--seed", "1"
 		});
 
@@ -100,7 +122,7 @@ class ParityIntegrationTest {
 		Path cliPep = cliOut.resolve("mokapot.peptides.txt");
 		Assumptions.assumeTrue(Files.exists(cliPsm) && Files.exists(cliPep), "mokapot CLI outputs not found");
 
-		Counts javaCounts = readCounts(javaOut.resolve("targets.psms.tsv"), javaOut.resolve("targets.peptides.tsv"));
+		Counts javaCounts = readCounts(javaOut.resolve("10k_psms_test.psms.tsv"), javaOut.resolve("10k_psms_test.peptides.tsv"));
 		Counts cliCounts = readCounts(cliPsm, cliPep);
 
 		assertTrue(Math.abs(javaCounts.peptideAtFdr() - cliCounts.peptideAtFdr()) <= 5);

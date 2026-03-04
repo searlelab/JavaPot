@@ -8,8 +8,8 @@ JavaPot is a Java clone of Dr. Will Fondrie's mokapot main code path for Percola
 - Deterministic seeded behavior across fold splitting, training, and model selection.
 - Optional multithreaded fold training via `--max_workers`.
 - Percolator-style output headers by default, with optional mokapot-style output naming via `--output_format mokapot`.
-- Model persistence with `--save_models` and `--load_models`.
-- Confidence output tables written as `targets.psms.tsv` and `targets.peptides.tsv`.
+- Model persistence with `--write_model_files` and `--load_models`.
+- Confidence output tables written with `<pin_name>` prefixes (for example, `sample.peptides.tsv`).
 
 ## Requirements
 - Java 17
@@ -32,12 +32,14 @@ java -cp "target/classes:$(cat /tmp/javapot.cp)" org.searlelab.javapot.cli.JavaP
 ```text
 Usage: javapot [options] <pin_file>
 Options:
+  -h, --help            Show this help message and exit.
   -d DEST_DIR, --dest_dir DEST_DIR
-                        The directory in which to write the result files. Defaults to the current working directory
+                        The directory in which to write the result files. Defaults to the input PIN directory.
   -w MAX_WORKERS, --max_workers MAX_WORKERS
                         The number of processes to use for model training. Defaults to --folds when omitted. Note that using more than one worker will result in garbled logging messages.
   --output_format OUTPUT_FORMAT
                         Output TSV schema to write: percolator (default) or mokapot.
+  --quiet               Suppress progress/status logging output.
   --train_fdr TRAIN_FDR
                         The maximum false discovery rate at which to consider a target PSM as a positive example during model training.
   --test_fdr TEST_FDR   The false-discovery rate threshold at which to evaluate the learned models.
@@ -47,7 +49,19 @@ Options:
                         The name of the feature to use as the initial direction for ranking PSMs.
   --subset_max_train SUBSET_MAX_TRAIN
                         Maximum number of PSMs to use during the training of each of the cross validation folds in the model.
-  --save_models         Save the models learned by javapot as Java serialized model objects.
+  --write_model_files   Save the models learned by javapot as Java serialized model objects.
+  --write_psm_files     Write target PSM output files in addition to peptide files.
+  --write_decoy_files   Write decoy peptide/PSM forensic output files.
+  --mixmax, --post-processing-mix-max
+                        Use Percolator mix-max post-processing for q-value and PEP assignment.
+  --results-peptides PATH
+                        Write target peptide output to PATH (relative to current working directory).
+  --decoy-results-peptides PATH
+                        Write decoy peptide output to PATH (relative to current working directory).
+  --results-psms PATH
+                        Write target PSM output to PATH (relative to current working directory).
+  --decoy-results-psms PATH
+                        Write decoy PSM output to PATH (relative to current working directory).
   --load_models LOAD_MODELS [LOAD_MODELS ...]
                         Load previously saved models and skip model training. Number of models must match --folds.
   --folds FOLDS         Number of cross-validation folds. Default: 3.

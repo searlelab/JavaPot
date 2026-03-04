@@ -27,11 +27,11 @@ class MixMaxIntegrationTest {
 		Path mixmaxOutA = runAnalysis(pinFile, tempDir.resolve("mixmax_a"), true, 7L);
 		Path mixmaxOutB = runAnalysis(pinFile, tempDir.resolve("mixmax_b"), true, 7L);
 
-		Path tdcPsm = tdcOut.resolve("targets.psms.tsv");
-		Path mixmaxPsmA = mixmaxOutA.resolve("targets.psms.tsv");
-		Path mixmaxPepA = mixmaxOutA.resolve("targets.peptides.tsv");
-		Path mixmaxPsmB = mixmaxOutB.resolve("targets.psms.tsv");
-		Path mixmaxPepB = mixmaxOutB.resolve("targets.peptides.tsv");
+		Path tdcPsm = tdcOut.resolve("synthetic_mixmax.psms.tsv");
+		Path mixmaxPsmA = mixmaxOutA.resolve("synthetic_mixmax.psms.tsv");
+		Path mixmaxPepA = mixmaxOutA.resolve("synthetic_mixmax.peptides.tsv");
+		Path mixmaxPsmB = mixmaxOutB.resolve("synthetic_mixmax.psms.tsv");
+		Path mixmaxPepB = mixmaxOutB.resolve("synthetic_mixmax.peptides.tsv");
 
 		assertEquals(0, countDuplicateSpectra(tdcPsm), "TDC output should contain one target per spectrum key");
 		assertTrue(countDuplicateSpectra(mixmaxPsmA) > 0, "Mix-max output should retain multiple targets per spectrum key");
@@ -52,6 +52,7 @@ class MixMaxIntegrationTest {
 				"--dest_dir", outputDir.toString(),
 				"--output_format", "mokapot",
 				"--max_workers", "1",
+				"--write_psm_files",
 				"--folds", "2",
 				"--max_iter", "2",
 				"--seed", Long.toString(seed),
@@ -65,6 +66,7 @@ class MixMaxIntegrationTest {
 				"--dest_dir", outputDir.toString(),
 				"--output_format", "mokapot",
 				"--max_workers", "1",
+				"--write_psm_files",
 				"--folds", "2",
 				"--max_iter", "2",
 				"--seed", Long.toString(seed),

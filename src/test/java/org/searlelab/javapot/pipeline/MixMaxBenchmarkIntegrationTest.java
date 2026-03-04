@@ -27,18 +27,18 @@ class MixMaxBenchmarkIntegrationTest {
 		Path tdcOut = runAnalysis(tempDir.resolve("tdc"), false);
 		Path mixmaxOut = runAnalysis(tempDir.resolve("mixmax"), true);
 
-		int tdcPeptidesAtFdr = countAtThreshold(tdcOut.resolve("targets.peptides.tsv"), FDR_THRESHOLD);
-		int mixmaxPeptidesAtFdr = countAtThreshold(mixmaxOut.resolve("targets.peptides.tsv"), FDR_THRESHOLD);
+		int tdcPeptidesAtFdr = countAtThreshold(tdcOut.resolve("minmax_10k.peptides.tsv"), FDR_THRESHOLD);
+		int mixmaxPeptidesAtFdr = countAtThreshold(mixmaxOut.resolve("minmax_10k.peptides.tsv"), FDR_THRESHOLD);
 		assertTrue(
 			mixmaxPeptidesAtFdr > tdcPeptidesAtFdr,
 			"Expected mix-max peptides > TDC peptides at q<=" + FDR_THRESHOLD +
 				" but observed mix-max=" + mixmaxPeptidesAtFdr + ", tdc=" + tdcPeptidesAtFdr
 		);
 
-		assertTrue(allQvaluesAtMostPep(tdcOut.resolve("targets.psms.tsv")), "TDC PSM output violates q-value <= PEP");
-		assertTrue(allQvaluesAtMostPep(tdcOut.resolve("targets.peptides.tsv")), "TDC peptide output violates q-value <= PEP");
-		assertTrue(allQvaluesAtMostPep(mixmaxOut.resolve("targets.psms.tsv")), "Mix-max PSM output violates q-value <= PEP");
-		assertTrue(allQvaluesAtMostPep(mixmaxOut.resolve("targets.peptides.tsv")), "Mix-max peptide output violates q-value <= PEP");
+		assertTrue(allQvaluesAtMostPep(tdcOut.resolve("minmax_10k.psms.tsv")), "TDC PSM output violates q-value <= PEP");
+		assertTrue(allQvaluesAtMostPep(tdcOut.resolve("minmax_10k.peptides.tsv")), "TDC peptide output violates q-value <= PEP");
+		assertTrue(allQvaluesAtMostPep(mixmaxOut.resolve("minmax_10k.psms.tsv")), "Mix-max PSM output violates q-value <= PEP");
+		assertTrue(allQvaluesAtMostPep(mixmaxOut.resolve("minmax_10k.peptides.tsv")), "Mix-max peptide output violates q-value <= PEP");
 	}
 
 	private static Path runAnalysis(Path outputDir, boolean mixmax) throws IOException {
@@ -49,6 +49,7 @@ class MixMaxBenchmarkIntegrationTest {
 		args.add(outputDir.toString());
 		args.add("--max_workers");
 		args.add("1");
+		args.add("--write_psm_files");
 		args.add("--folds");
 		args.add("2");
 		args.add("--max_iter");

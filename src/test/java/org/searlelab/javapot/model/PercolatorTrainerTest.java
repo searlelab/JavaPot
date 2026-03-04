@@ -19,7 +19,7 @@ class PercolatorTrainerTest {
 			{"id3", "1", "102", "500.2", "2.0", "PEP3", "P3"},
 			{"id4", "-1", "103", "500.3", "1.0", "PEP4", "P4"}
 		});
-		TrainingParams params = new TrainingParams(0.5, 1, "feat", 7L, ConfidenceMode.TDC);
+		TrainingParams params = new TrainingParams(0.5, 1, "feat", 7L, ConfidenceMode.TDC, true);
 
 		FoldTrainingOutput out = PercolatorTrainer.trainFold(ds, new int[]{0, 1, 2, 3}, 1, params);
 		assertTrue(out.bestFeaturePass() > 0, "Expected positive training labels under TDC with skipDecoysPlusOne default");

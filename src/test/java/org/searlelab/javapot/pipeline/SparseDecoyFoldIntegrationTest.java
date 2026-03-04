@@ -29,6 +29,7 @@ class SparseDecoyFoldIntegrationTest {
 			outDir,
 			1,
 			OutputFormat.MOKAPOT,
+			true,
 			0.5,
 			0.5,
 			2,
@@ -36,14 +37,20 @@ class SparseDecoyFoldIntegrationTest {
 			null,
 			null,
 			false,
+			true,
+			false,
+			null,
+			null,
+			null,
+			null,
 			List.of(),
 			3,
 			false
 		);
 		JavaPotRunner.run(config);
 
-		Path psm = outDir.resolve("targets.psms.tsv");
-		Path pep = outDir.resolve("targets.peptides.tsv");
+		Path psm = outDir.resolve("sparse_decoy.psms.tsv");
+		Path pep = outDir.resolve("sparse_decoy.peptides.tsv");
 		assertTrue(Files.exists(psm), "PSM output missing");
 		assertTrue(Files.exists(pep), "Peptide output missing");
 		assertTrue(hasFiniteQAndPep(psm));

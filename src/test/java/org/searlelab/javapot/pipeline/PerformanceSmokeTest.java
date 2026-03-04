@@ -31,18 +31,20 @@ class PerformanceSmokeTest {
 			PIN_FILE.toString(),
 			"--dest_dir", outputDir.toString(),
 			"--max_workers", "1",
+			"--write_psm_files",
 			"--seed", "1"
 		});
 		long elapsedMs = (System.nanoTime() - start) / 1_000_000L;
 
-		Path psmFile = outputDir.resolve("targets.psms.tsv");
-		Path pepFile = outputDir.resolve("targets.peptides.tsv");
+		Path psmFile = outputDir.resolve("10k_psms_test.psms.tsv");
+		Path pepFile = outputDir.resolve("10k_psms_test.peptides.tsv");
 		assertTrue(Files.exists(psmFile), "PSM output missing");
 		assertTrue(Files.exists(pepFile), "Peptide output missing");
 
 		int psmAt = countAtThreshold(psmFile, 0.01);
 		int pepAt = countAtThreshold(pepFile, 0.01);
 
+		// Intentionally widened after fold assignment/training-label parity changes that shifted stable count baselines.
 		assertTrue(pepAt >= 280 && pepAt <= 330, "Unexpected peptide count at q<=0.01: " + pepAt);
 		assertTrue(psmAt >= 440 && psmAt <= 530, "Unexpected PSM count at q<=0.01: " + psmAt);
 		assertTrue(elapsedMs <= MAX_RUNTIME_MS, "Runtime budget exceeded: " + elapsedMs + " ms (limit=" + MAX_RUNTIME_MS + " ms)");
