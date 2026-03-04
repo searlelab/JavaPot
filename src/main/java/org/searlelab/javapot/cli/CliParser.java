@@ -5,7 +5,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * CliParser parses the supported JavaPot command-line options into a validated {@link CliConfig}.
+ * CliParser parses the supported JavaPot command-line options into a validated {@link JavaPotOptions}.
  * It also enforces argument constraints such as exactly one PIN input and allowed numeric ranges.
  */
 public final class CliParser {
@@ -21,15 +21,15 @@ public final class CliParser {
 	/**
 	 * Parses command-line arguments into a validated runtime configuration.
 	 */
-	public static CliConfig parse(String[] args) {
+	public static JavaPotOptions parse(String[] args) {
 		Path destDir = null;
 		Integer maxWorkers = null;
 		OutputFormat outputFormat = OutputFormat.PERCOLATOR;
 		boolean quiet = false;
-		double trainFdr = CliConfig.DEFAULT_FDR;
-		double testFdr = CliConfig.DEFAULT_FDR;
-		int maxIter = CliConfig.DEFAULT_MAX_ITER;
-		long seed = CliConfig.DEFAULT_SEED;
+		double trainFdr = JavaPotOptions.DEFAULT_FDR;
+		double testFdr = JavaPotOptions.DEFAULT_FDR;
+		int maxIter = JavaPotOptions.DEFAULT_MAX_ITER;
+		long seed = JavaPotOptions.DEFAULT_SEED;
 		String direction = null;
 		Integer subsetMaxTrain = null;
 		boolean writeModelFiles = false;
@@ -40,7 +40,7 @@ public final class CliParser {
 		Path resultsPsms = null;
 		Path decoyResultsPsms = null;
 		List<Path> loadModels = new ArrayList<>();
-		int folds = CliConfig.DEFAULT_FOLDS;
+		int folds = JavaPotOptions.DEFAULT_FOLDS;
 		boolean mixmax = false;
 		List<String> positional = new ArrayList<>();
 
@@ -155,7 +155,7 @@ public final class CliParser {
 		}
 		int resolvedMaxWorkers = maxWorkers != null ? maxWorkers : folds;
 
-		return new CliConfig(
+		return new JavaPotOptions(
 			pinFile,
 			resolvedDestDir,
 			resolvedMaxWorkers,

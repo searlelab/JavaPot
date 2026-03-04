@@ -25,8 +25,8 @@ public final class JavaPotCli {
 		}
 		long startNanos = System.nanoTime();
 		try {
-			CliConfig config = CliParser.parse(args);
-			JavaPotRunner.run(config);
+			JavaPotOptions options = CliParser.parse(args);
+			JavaPotRunner.run(options);
 			long elapsedNanos = System.nanoTime() - startNanos;
 			System.out.println("JavaPot finished processing in " + formatDuration(elapsedNanos) + ".");
 		} catch (CliParser.HelpRequestedException e) {

@@ -15,7 +15,7 @@ import org.junit.jupiter.api.Test;
 class CliParserTest {
 	@Test
 	void parsesDefaultsAndPositionalPin() {
-		CliConfig cfg = CliParser.parse(new String[]{"/tmp/test.pin"});
+		JavaPotOptions cfg = CliParser.parse(new String[]{"/tmp/test.pin"});
 		assertEquals(Path.of("/tmp/test.pin"), cfg.pinFile());
 		assertEquals(Path.of("/tmp"), cfg.destDir());
 		assertEquals(3, cfg.maxWorkers());
@@ -58,7 +58,7 @@ class CliParserTest {
 
 	@Test
 	void parsesLoadModelsList() {
-		CliConfig cfg = CliParser.parse(new String[]{"input.pin", "--load_models", "m1.bin", "m2.bin", "--folds", "2"});
+		JavaPotOptions cfg = CliParser.parse(new String[]{"input.pin", "--load_models", "m1.bin", "m2.bin", "--folds", "2"});
 		assertEquals(2, cfg.loadModels().size());
 		assertEquals(2, cfg.folds());
 		assertEquals(2, cfg.maxWorkers());
@@ -67,7 +67,7 @@ class CliParserTest {
 
 	@Test
 	void defaultsMaxWorkersToFoldsWhenOmitted() {
-		CliConfig cfg = CliParser.parse(new String[]{"input.pin", "--folds", "7"});
+		JavaPotOptions cfg = CliParser.parse(new String[]{"input.pin", "--folds", "7"});
 		assertEquals(7, cfg.folds());
 		assertEquals(7, cfg.maxWorkers());
 		assertEquals(OutputFormat.PERCOLATOR, cfg.outputFormat());
@@ -75,7 +75,7 @@ class CliParserTest {
 
 	@Test
 	void explicitMaxWorkersOverridesFoldsDefaulting() {
-		CliConfig cfg = CliParser.parse(new String[]{"input.pin", "--folds", "7", "--max_workers", "2"});
+		JavaPotOptions cfg = CliParser.parse(new String[]{"input.pin", "--folds", "7", "--max_workers", "2"});
 		assertEquals(7, cfg.folds());
 		assertEquals(2, cfg.maxWorkers());
 		assertEquals(OutputFormat.PERCOLATOR, cfg.outputFormat());
@@ -83,7 +83,7 @@ class CliParserTest {
 
 	@Test
 	void parsesAllSupportedOptions() {
-		CliConfig cfg = CliParser.parse(new String[]{
+		JavaPotOptions cfg = CliParser.parse(new String[]{
 			"input.pin",
 			"-d", "/tmp/out",
 			"-w", "3",
@@ -121,7 +121,7 @@ class CliParserTest {
 
 	@Test
 	void parsesPercolatorOutputOverrides() {
-		CliConfig cfg = CliParser.parse(new String[]{
+		JavaPotOptions cfg = CliParser.parse(new String[]{
 			"input.pin",
 			"--results-peptides", "out/target_peptides.tsv",
 			"--decoy-results-peptides", "out/decoy_peptides.tsv",
@@ -136,7 +136,7 @@ class CliParserTest {
 
 	@Test
 	void parsesMixmaxAlias() {
-		CliConfig cfg = CliParser.parse(new String[]{"input.pin", "--post-processing-mix-max"});
+		JavaPotOptions cfg = CliParser.parse(new String[]{"input.pin", "--post-processing-mix-max"});
 		assertTrue(cfg.mixmax());
 	}
 

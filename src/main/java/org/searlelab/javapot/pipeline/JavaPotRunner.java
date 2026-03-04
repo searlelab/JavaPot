@@ -15,7 +15,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 
 import gnu.trove.set.hash.THashSet;
-import org.searlelab.javapot.cli.CliConfig;
+import org.searlelab.javapot.cli.JavaPotOptions;
 import org.searlelab.javapot.cli.OutputFormat;
 import org.searlelab.javapot.data.ColumnGroups;
 import org.searlelab.javapot.data.PsmDataset;
@@ -59,7 +59,14 @@ public final class JavaPotRunner {
 	/**
 	 * Executes the full JavaPot pipeline for one parsed CLI configuration.
 	 */
-	public static void run(CliConfig config) {
+	public static void run(JavaPotOptions config) {
+		runForResult(config);
+	}
+
+	/**
+	 * Executes the full JavaPot pipeline and returns programmatic peptide/PSM confidence outputs.
+	 */
+	public static JavaPotRunResult runForResult(JavaPotOptions config) {
 		log(config, "JavaPot starting");
 		PsmDataset dataset = PinFileParser.read(config.pinFile());
 		printDatasetInfo(dataset, config);
@@ -112,9 +119,16 @@ public final class JavaPotRunner {
 		if (!writtenPaths.isEmpty()) {
 			log(config, "Wrote " + joinPaths(writtenPaths));
 		}
+		return new JavaPotRunResult(
+			tables.peptideResults(),
+			tables.psmResults(),
+			tables.psmPi0(),
+			tables.peptidePi0(),
+			new ArrayList<>(writtenPaths)
+		);
 	}
 
-	private static void printDatasetInfo(PsmDataset dataset, CliConfig config) {
+	private static void printDatasetInfo(PsmDataset dataset, JavaPotOptions config) {
 		boolean[] targets = dataset.rawTargets();
 		int targetCount = 0;
 		for (boolean target : targets) {
@@ -170,7 +184,7 @@ public final class JavaPotRunner {
 		}
 	}
 
-	private static OutputPlan buildOutputPlan(CliConfig config) {
+	private static OutputPlan buildOutputPlan(JavaPotOptions config) {
 		if (hasExplicitOutputOverride(config)) {
 			return new OutputPlan(
 				config.resultsPsms(),
@@ -190,7 +204,7 @@ public final class JavaPotRunner {
 		return new OutputPlan(targetPsm, targetPeptide, decoyPsm, decoyPeptide);
 	}
 
-	private static boolean hasExplicitOutputOverride(CliConfig config) {
+	private static boolean hasExplicitOutputOverride(JavaPotOptions config) {
 		return config.resultsPeptides() != null ||
 			config.decoyResultsPeptides() != null ||
 			config.resultsPsms() != null ||
@@ -226,7 +240,7 @@ public final class JavaPotRunner {
 		return sb.toString();
 	}
 
-	private static void log(CliConfig config, String message) {
+	private static void log(JavaPotOptions config, String message) {
 		if (config.quiet()) {
 			return;
 		}
@@ -236,7 +250,7 @@ public final class JavaPotRunner {
 	private static List<PercolatorFoldModel> trainModels(
 		PsmDataset dataset,
 		int[][] folds,
-		CliConfig config,
+		JavaPotOptions config,
 		DeterministicRandom rng
 	) {
 		log(config, "Splitting PSMs into " + config.folds() + " folds...");
@@ -417,6 +431,20 @@ public final class JavaPotRunner {
 		double[] pepScores = gather(scores, peptideBest);
 		boolean[] pepTargets = gatherTargets(dataset.rawTargets(), peptideBest);
 		ConfidenceResult peptideConfidence = estimateConfidence(pepScores, pepTargets, confidenceMode, seed + 197L);
+		ArrayList<JavaPotPeptide> psmResults = buildApiRows(
+			dataset,
+			psmBest,
+			psmScores,
+			psmConfidence.qValues(),
+			psmConfidence.pepValues()
+		);
+		ArrayList<JavaPotPeptide> peptideResults = buildApiRows(
+			dataset,
+			peptideBest,
+			pepScores,
+			peptideConfidence.qValues(),
+			peptideConfidence.pepValues()
+		);
 
 		List<String> psmHeader;
 		List<String[]> targetPsmRows;
@@ -508,7 +536,11 @@ public final class JavaPotRunner {
 			peptideHeader,
 			targetPeptideRows,
 			decoyPeptideRows,
-			peptidesAtThreshold
+			peptidesAtThreshold,
+			psmResults,
+			peptideResults,
+			psmConfidence.pi0(),
+			peptideConfidence.pi0()
 		);
 	}
 
@@ -520,14 +552,17 @@ public final class JavaPotRunner {
 	) {
 		double[] qValues;
 		double[] pepValues;
+		Double pi0 = null;
 		if (confidenceMode == ConfidenceMode.MIXMAX) {
-			qValues = MixMaxQValues.compute(scores, targets, true, seed, false, 0.5).qValues();
+			MixMaxQValues.Result mixMax = MixMaxQValues.compute(scores, targets, true, seed, false, 0.5);
+			qValues = mixMax.qValues();
+			pi0 = mixMax.pi0();
 			pepValues = PepEstimator.tdcToPep(scores, targets).pepValues();
 		} else {
 			qValues = QValues.tdc(scores, targets, true);
 			pepValues = PepEstimator.tdcQvalsToPep(scores, targets, qValues).pepValues();
 		}
-		return new ConfidenceResult(qValues, pepValues);
+		return new ConfidenceResult(qValues, pepValues, pi0);
 	}
 
 	private static int countTargetsAtThreshold(boolean[] targets, double[] qvals, double evalFdr) {
@@ -639,6 +674,30 @@ public final class JavaPotRunner {
 		return proteins == null ? "" : proteins;
 	}
 
+	private static ArrayList<JavaPotPeptide> buildApiRows(
+		PsmDataset dataset,
+		int[] keptIdx,
+		double[] scores,
+		double[] qvals,
+		double[] peps
+	) {
+		ArrayList<JavaPotPeptide> out = new ArrayList<>(keptIdx.length);
+		for (int i = 0; i < keptIdx.length; i++) {
+			int rowIdx = keptIdx[i];
+			out.add(
+				new JavaPotPeptide(
+					scores[i],
+					qvals[i],
+					peps[i],
+					!dataset.targetAt(rowIdx),
+					resolvePercolatorPsmId(dataset, rowIdx),
+					dataset.peptideAt(rowIdx)
+				)
+			);
+		}
+		return out;
+	}
+
 	private static int[] deduplicateBySpectrum(PsmDataset dataset, double[] scores) {
 		int[] idx = sortedIndicesByScore(scores);
 		Set<String> seen = new THashSet<>(idx.length);
@@ -738,7 +797,11 @@ public final class JavaPotRunner {
 		List<String> peptideHeader,
 		List<String[]> targetPeptideRows,
 		List<String[]> decoyPeptideRows,
-		int peptidesAtThreshold
+		int peptidesAtThreshold,
+		ArrayList<JavaPotPeptide> psmResults,
+		ArrayList<JavaPotPeptide> peptideResults,
+		Double psmPi0,
+		Double peptidePi0
 	) {
 	}
 
@@ -750,6 +813,6 @@ public final class JavaPotRunner {
 	) {
 	}
 
-	private record ConfidenceResult(double[] qValues, double[] pepValues) {
+	private record ConfidenceResult(double[] qValues, double[] pepValues, Double pi0) {
 	}
 }

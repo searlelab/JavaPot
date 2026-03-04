@@ -67,6 +67,31 @@ Options:
   --folds FOLDS         Number of cross-validation folds. Default: 3.
 ```
 
+## Programmatic API
+JavaPot can be run in-process without shelling out to CLI:
+
+```java
+import java.nio.file.Path;
+import org.searlelab.javapot.cli.JavaPotOptions;
+import org.searlelab.javapot.pipeline.JavaPotApi;
+import org.searlelab.javapot.pipeline.JavaPotRunResult;
+
+JavaPotOptions options = new JavaPotOptions(
+    Path.of("/path/to/input.pin"),
+    0.01,
+    0.01,
+    Path.of("targets.peptides.tsv"),
+    Path.of("decoys.peptides.tsv"),
+    true // mixmax
+);
+
+JavaPotRunResult result = JavaPotApi.run(options);
+// result.peptides() / result.psms() are ArrayList<JavaPotPeptide>
+// result.psmPi0() and result.peptidePi0() are populated in mixmax mode (null in TDC mode)
+```
+
+`JavaPotPeptide` exposes: `score`, `qValue`, `pep`, `isDecoy`, `psmId`, and `peptideSequence`.
+
 ## Relationship to mokapot and Percolator
 JavaPot is intended to mirror the mokapot Percolator-like algorithmic path in Java. For reference implementations and related tooling, see:
 - mokapot GitHub: [https://github.com/wfondrie/mokapot](https://github.com/wfondrie/mokapot)

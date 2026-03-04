@@ -10,7 +10,7 @@ import java.util.List;
 
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
-import org.searlelab.javapot.cli.CliConfig;
+import org.searlelab.javapot.cli.JavaPotOptions;
 import org.searlelab.javapot.cli.OutputFormat;
 
 class SparseDecoyFoldIntegrationTest {
@@ -24,7 +24,7 @@ class SparseDecoyFoldIntegrationTest {
 		Path outDir = tempDir.resolve("out");
 		Files.createDirectories(outDir);
 
-		CliConfig config = new CliConfig(
+		JavaPotOptions config = new JavaPotOptions(
 			pin,
 			outDir,
 			1,
