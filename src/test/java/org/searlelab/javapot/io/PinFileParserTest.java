@@ -3,6 +3,7 @@ package org.searlelab.javapot.io;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -100,6 +101,15 @@ class PinFileParserTest {
 		Path noRows = tmp.resolve("norows.pin");
 		Files.writeString(noRows, "SpecId\tLabel\tScanNr\tExpMass\tfeatA\tPeptide\tProteins\n");
 		assertThrows(IllegalArgumentException.class, () -> PinFileParser.read(noRows));
+	}
+
+	@Test
+	void wrapsIoFailuresWhenInputCannotBeRead() throws IOException {
+		Path directory = tmp.resolve("not_a_file");
+		Files.createDirectory(directory);
+
+		RuntimeException ex = assertThrows(RuntimeException.class, () -> PinFileParser.read(directory));
+		assertTrue(ex.getMessage().contains("Failed to parse PIN file"));
 	}
 
 	@Test
