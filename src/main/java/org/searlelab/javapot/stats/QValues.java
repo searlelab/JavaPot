@@ -16,10 +16,34 @@ public final class QValues {
 	 * Computes target-decoy-competition q-values for scored rows.
 	 */
 	public static double[] tdc(double[] scoresInput, boolean[] targetsInput, boolean desc) {
+		return tdc(scoresInput, targetsInput, desc, false);
+	}
+
+	/**
+	 * Computes target-decoy-competition q-values for scored rows.
+	 * When {@code skipDecoysPlusOne} is true, the +1 pseudocount is omitted from the FDR numerator.
+	 */
+	public static double[] tdc(
+		double[] scoresInput,
+		boolean[] targetsInput,
+		boolean desc,
+		boolean skipDecoysPlusOne
+	) {
 		if (scoresInput.length != targetsInput.length) {
 			throw new IllegalArgumentException("scores and targets must be the same length");
 		}
 		int n = scoresInput.length;
+		int decoyTotal = 0;
+		for (boolean target : targetsInput) {
+			if (!target) {
+				decoyTotal++;
+			}
+		}
+		if (decoyTotal == 0) {
+			double[] out = new double[n];
+			Arrays.fill(out, skipDecoysPlusOne ? 0.0 : 1.0);
+			return out;
+		}
 		double[] scores = Arrays.copyOf(scoresInput, n);
 		boolean[] targets = Arrays.copyOf(targetsInput, n);
 
@@ -50,7 +74,8 @@ public final class QValues {
 			if (cumTargets == 0) {
 				fdr[i] = 1.0;
 			} else {
-				fdr[i] = Math.min(1.0, (cumDecoys + 1.0) / cumTargets);
+				double decoyNumerator = skipDecoysPlusOne ? cumDecoys : (cumDecoys + 1.0);
+				fdr[i] = Math.min(1.0, decoyNumerator / cumTargets);
 			}
 		}
 

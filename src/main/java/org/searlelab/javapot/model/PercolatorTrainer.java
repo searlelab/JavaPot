@@ -3,6 +3,7 @@ package org.searlelab.javapot.model;
 import java.util.Arrays;
 
 import org.searlelab.javapot.data.PsmDataset;
+import org.searlelab.javapot.stats.ConfidenceMode;
 import org.searlelab.javapot.stats.LabelUpdater;
 import org.searlelab.javapot.util.DeterministicRandom;
 
@@ -26,8 +27,18 @@ public final class PercolatorTrainer {
 		double[][] raw = subsetRows(dataset.rawFeatures(), trainIdx);
 		boolean[] targets = subsetTargets(dataset.rawTargets(), trainIdx);
 		String[] featureNames = dataset.featureNames();
+		boolean hasDecoys = containsLabel(targets, false);
 
-		StartResult start = startingLabels(raw, targets, featureNames, params.direction(), params.trainFdr());
+		StartResult start = startingLabels(
+			raw,
+			targets,
+			featureNames,
+			params.direction(),
+			params.trainFdr(),
+			params.confidenceMode(),
+			params.seed(),
+			!hasDecoys
+		);
 		if (countOnes(start.labels()) == 0) {
 			throw new RuntimeException("No PSMs accepted at train_fdr=" + params.trainFdr());
 		}
@@ -59,7 +70,17 @@ public final class PercolatorTrainer {
 			model = LinearSvmModel.fit(iterSubset.x(), iterSubset.ySigned(), pair.negative(), pair.positive(), 40);
 			double[] scoresShuffled = model.decisionFunction(normShuffled);
 			double[] scoresOriginal = reorderByOriginal(scoresShuffled, originalIdx);
-			int[] labelsOriginal = LabelUpdater.updateLabels(scoresOriginal, targets, params.trainFdr(), true);
+			long labelSeed = params.seed() + (i + 1L) * 10_000L;
+			boolean skipDecoysPlusOne = true;
+			int[] labelsOriginal = LabelUpdater.updateLabels(
+				scoresOriginal,
+				targets,
+				params.trainFdr(),
+				true,
+				params.confidenceMode(),
+				labelSeed,
+				skipDecoysPlusOne
+			);
 			target = takeLabels(labelsOriginal, shuffledIdx);
 			numPassed[i] = countOnes(target);
 			System.out.println("[INFO] \t- Iteration " + i + ": " + numPassed[i] + " training PSMs passed.");
@@ -99,7 +120,10 @@ public final class PercolatorTrainer {
 		boolean[] targets,
 		String[] featureNames,
 		String direction,
-		double trainFdr
+		double trainFdr,
+		ConfidenceMode confidenceMode,
+		long seed,
+		boolean forceSkipDecoysPlusOne
 	) {
 		if (direction == null) {
 			int bestPass = -1;
@@ -109,7 +133,17 @@ public final class PercolatorTrainer {
 			for (int j = 0; j < featureNames.length; j++) {
 				double[] scores = column(x, j);
 				for (boolean desc : new boolean[]{true, false}) {
-					int[] labels = LabelUpdater.updateLabels(scores, targets, trainFdr, desc);
+					long labelSeed = seed + (j * 2L) + (desc ? 0L : 1L);
+					boolean skipDecoysPlusOne = true;
+					int[] labels = LabelUpdater.updateLabels(
+						scores,
+						targets,
+						trainFdr,
+						desc,
+						confidenceMode,
+						labelSeed,
+						skipDecoysPlusOne
+					);
 					int pass = countOnes(labels);
 					if (pass > bestPass) {
 						bestPass = pass;
@@ -120,6 +154,9 @@ public final class PercolatorTrainer {
 				}
 			}
 			if (bestPass <= 0 || bestLabels == null) {
+				if (!forceSkipDecoysPlusOne) {
+					return startingLabels(x, targets, featureNames, direction, trainFdr, confidenceMode, seed, true);
+				}
 				throw new RuntimeException("No PSMs found below train_fdr for any feature.");
 			}
 			return new StartResult(bestFeature, bestPass, bestDesc, bestLabels);
@@ -137,10 +174,14 @@ public final class PercolatorTrainer {
 		}
 
 		double[] scores = column(x, featureIdx);
-		int[] descLabels = LabelUpdater.updateLabels(scores, targets, trainFdr, true);
-		int[] ascLabels = LabelUpdater.updateLabels(scores, targets, trainFdr, false);
+		boolean skipDecoysPlusOne = true;
+		int[] descLabels = LabelUpdater.updateLabels(scores, targets, trainFdr, true, confidenceMode, seed, skipDecoysPlusOne);
+		int[] ascLabels = LabelUpdater.updateLabels(scores, targets, trainFdr, false, confidenceMode, seed + 1L, skipDecoysPlusOne);
 		int descPass = countOnes(descLabels);
 		int ascPass = countOnes(ascLabels);
+		if (descPass <= 0 && ascPass <= 0 && !forceSkipDecoysPlusOne) {
+			return startingLabels(x, targets, featureNames, direction, trainFdr, confidenceMode, seed, true);
+		}
 		if (descPass >= ascPass) {
 			return new StartResult(direction, descPass, true, descLabels);
 		}
@@ -226,6 +267,15 @@ public final class PercolatorTrainer {
 			}
 		}
 		return c;
+	}
+
+	private static boolean containsLabel(boolean[] labels, boolean value) {
+		for (boolean label : labels) {
+			if (label == value) {
+				return true;
+			}
+		}
+		return false;
 	}
 
 	private static double[] column(double[][] x, int featureIdx) {

@@ -12,7 +12,27 @@ public final class LabelUpdater {
 	 * Converts calibrated scores into Percolator labels (-1, 0, +1) at the requested FDR.
 	 */
 	public static int[] updateLabels(double[] scores, boolean[] targets, double evalFdr, boolean desc) {
-		double[] qvals = QValues.tdc(scores, targets, desc);
+		return updateLabels(scores, targets, evalFdr, desc, ConfidenceMode.TDC, 1L, false);
+	}
+
+	/**
+	 * Converts calibrated scores into Percolator labels (-1, 0, +1) at the requested FDR.
+	 */
+	public static int[] updateLabels(
+		double[] scores,
+		boolean[] targets,
+		double evalFdr,
+		boolean desc,
+		ConfidenceMode mode,
+		long seed,
+		boolean skipDecoysPlusOne
+	) {
+		double[] qvals;
+		if (mode == ConfidenceMode.MIXMAX) {
+			qvals = MixMaxQValues.compute(scores, targets, desc, seed, skipDecoysPlusOne, 0.5).qValues();
+		} else {
+			qvals = QValues.tdc(scores, targets, desc, skipDecoysPlusOne);
+		}
 		int[] out = new int[qvals.length];
 		for (int i = 0; i < qvals.length; i++) {
 			if (!targets[i]) {

@@ -28,6 +28,7 @@ public final class CliParser {
 		boolean saveModels = false;
 		List<Path> loadModels = new ArrayList<>();
 		int folds = CliConfig.DEFAULT_FOLDS;
+		boolean mixmax = false;
 		List<String> positional = new ArrayList<>();
 
 		for (int i = 0; i < args.length; i++) {
@@ -66,6 +67,9 @@ public final class CliParser {
 				}
 				case "--save_models" -> {
 					saveModels = true;
+				}
+				case "--mixmax", "--post-processing-mix-max" -> {
+					mixmax = true;
 				}
 				case "--load_models" -> {
 					if (i + 1 >= args.length || args[i + 1].startsWith("-")) {
@@ -130,7 +134,8 @@ public final class CliParser {
 			subsetMaxTrain,
 			saveModels,
 			List.copyOf(loadModels),
-			folds
+			folds,
+			mixmax
 		);
 	}
 
@@ -157,6 +162,7 @@ public final class CliParser {
 			  --subset_max_train SUBSET_MAX_TRAIN
 			                        Maximum number of PSMs to use during the training of each of the cross validation folds in the model.
 			  --save_models         Save the models learned by javapot as Java serialized model objects.
+			  --mixmax              Use Percolator mix-max post-processing for q-value and PEP assignment.
 			  --load_models LOAD_MODELS [LOAD_MODELS ...]
 			                        Load previously saved models and skip model training. Number of models must match --folds.
 			  --folds FOLDS         Number of cross-validation folds. Default: 3.

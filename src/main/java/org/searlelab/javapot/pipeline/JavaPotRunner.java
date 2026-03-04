@@ -27,7 +27,10 @@ import org.searlelab.javapot.model.FoldTrainingOutput;
 import org.searlelab.javapot.model.PercolatorFoldModel;
 import org.searlelab.javapot.model.PercolatorTrainer;
 import org.searlelab.javapot.model.TrainingParams;
+import org.searlelab.javapot.stats.ConfidenceMode;
 import org.searlelab.javapot.stats.LabelUpdater;
+import org.searlelab.javapot.stats.MixMaxQValues;
+import org.searlelab.javapot.stats.PepEstimator;
 import org.searlelab.javapot.stats.QValues;
 import org.searlelab.javapot.stats.ScoreCalibrator;
 import org.searlelab.javapot.util.DeterministicRandom;
@@ -63,7 +66,7 @@ public final class JavaPotRunner {
 		printDatasetInfo(dataset);
 
 		DeterministicRandom rng = new DeterministicRandom(config.seed());
-		int[][] folds = FoldSplitter.split(dataset, config.folds(), rng);
+		int[][] folds = FoldSplitter.split(dataset, config.folds(), rng, config.pinFile().getFileName().toString());
 		List<PercolatorFoldModel> models;
 		if (!config.loadModels().isEmpty()) {
 			if (config.loadModels().size() != config.folds()) {
@@ -72,14 +75,23 @@ public final class JavaPotRunner {
 				);
 			}
 			models = ModelIO.loadModels(config.loadModels());
+			validateLoadedModelFolds(models, config.folds());
 		} else {
 			models = trainModels(dataset, folds, config, rng);
 		}
+		ConfidenceMode confidenceMode = config.mixmax() ? ConfidenceMode.MIXMAX : ConfidenceMode.TDC;
 
 		double[] scores = predictScores(dataset, folds, models, config.testFdr());
-		double[] finalScores = maybeFallbackToBestFeature(dataset, models, scores, config.testFdr());
+		double[] finalScores = maybeFallbackToBestFeature(dataset, models, scores, config.testFdr(), confidenceMode, config.seed());
 
-		OutputTables tables = assignConfidenceAndBuildOutputs(dataset, finalScores, config.testFdr(), config.outputFormat());
+		OutputTables tables = assignConfidenceAndBuildOutputs(
+			dataset,
+			finalScores,
+			config.testFdr(),
+			config.outputFormat(),
+			confidenceMode,
+			config.seed()
+		);
 
 		Path psmPath = config.destDir().resolve("targets.psms.tsv");
 		Path peptidePath = config.destDir().resolve("targets.peptides.tsv");
@@ -128,7 +140,13 @@ public final class JavaPotRunner {
 			int[] trainIdx = complement(dataset.size(), folds[fi]);
 			trainIdx = maybeSubsetTrain(trainIdx, config.subsetMaxTrain(), rng);
 			long foldSeed = rng.nextLong();
-			TrainingParams params = new TrainingParams(config.trainFdr(), config.maxIter(), config.direction(), foldSeed);
+			TrainingParams params = new TrainingParams(
+				config.trainFdr(),
+				config.maxIter(),
+				config.direction(),
+				foldSeed,
+				config.mixmax() ? ConfidenceMode.MIXMAX : ConfidenceMode.TDC
+			);
 			final int[] trainCopy = Arrays.copyOf(trainIdx, trainIdx.length);
 			tasks.add(() -> {
 				System.out.println("[INFO] === Analyzing Fold " + fold + " ===");
@@ -209,13 +227,45 @@ public final class JavaPotRunner {
 		return out;
 	}
 
+	private static void validateLoadedModelFolds(List<PercolatorFoldModel> models, int expectedFolds) {
+		boolean[] seen = new boolean[expectedFolds + 1];
+		for (PercolatorFoldModel model : models) {
+			int fold = model.fold();
+			if (fold < 1 || fold > expectedFolds) {
+				throw new IllegalArgumentException(
+					"Loaded model fold index out of range: " + fold + " (expected 1.." + expectedFolds + ")"
+				);
+			}
+			if (seen[fold]) {
+				throw new IllegalArgumentException("Loaded models contain duplicate fold index: " + fold);
+			}
+			seen[fold] = true;
+		}
+		for (int fold = 1; fold <= expectedFolds; fold++) {
+			if (!seen[fold]) {
+				throw new IllegalArgumentException("Missing loaded model for fold " + fold);
+			}
+		}
+	}
+
 	private static double[] maybeFallbackToBestFeature(
 		PsmDataset dataset,
 		List<PercolatorFoldModel> models,
 		double[] scores,
-		double testFdr
+		double testFdr,
+		ConfidenceMode confidenceMode,
+		long seed
 	) {
-		int[] pred = LabelUpdater.updateLabels(scores, dataset.rawTargets(), testFdr, true);
+		boolean skipDecoysPlusOne = confidenceMode == ConfidenceMode.MIXMAX;
+		int[] pred = LabelUpdater.updateLabels(
+			scores,
+			dataset.rawTargets(),
+			testFdr,
+			true,
+			confidenceMode,
+			seed + 101L,
+			skipDecoysPlusOne
+		);
 		int predTotal = countOnes(pred);
 
 		PercolatorFoldModel best = null;
@@ -241,20 +291,22 @@ public final class JavaPotRunner {
 		PsmDataset dataset,
 		double[] scores,
 		double evalFdr,
-		OutputFormat outputFormat
+		OutputFormat outputFormat,
+		ConfidenceMode confidenceMode,
+		long seed
 	) {
-		int[] psmBest = deduplicateBySpectrum(dataset, scores);
+		int[] psmBest = confidenceMode == ConfidenceMode.MIXMAX
+			? sortedIndicesByScore(scores)
+			: deduplicateBySpectrum(dataset, scores);
 		int[] peptideBest = deduplicateByPeptide(dataset, psmBest, scores);
 
 		double[] psmScores = gather(scores, psmBest);
 		boolean[] psmTargets = gatherTargets(dataset.rawTargets(), psmBest);
-		double[] psmQ = QValues.tdc(psmScores, psmTargets, true);
-		double[] psmPep = Arrays.copyOf(psmQ, psmQ.length);
+		ConfidenceResult psmConfidence = estimateConfidence(psmScores, psmTargets, confidenceMode, seed + 131L);
 
 		double[] pepScores = gather(scores, peptideBest);
 		boolean[] pepTargets = gatherTargets(dataset.rawTargets(), peptideBest);
-		double[] pepQ = QValues.tdc(pepScores, pepTargets, true);
-		double[] pepPep = Arrays.copyOf(pepQ, pepQ.length);
+		ConfidenceResult peptideConfidence = estimateConfidence(pepScores, pepTargets, confidenceMode, seed + 197L);
 
 		List<String> psmHeader;
 		List<String[]> psmRows;
@@ -262,18 +314,62 @@ public final class JavaPotRunner {
 		List<String[]> peptideRows;
 		if (outputFormat == OutputFormat.MOKAPOT) {
 			psmHeader = mokapotHeader(dataset.columnGroups());
-			psmRows = buildMokapotRows(dataset, psmBest, psmScores, psmQ, psmPep, psmHeader);
+			psmRows = buildMokapotRows(
+				dataset,
+				psmBest,
+				psmScores,
+				psmConfidence.qValues(),
+				psmConfidence.pepValues(),
+				psmHeader
+			);
 			peptideHeader = psmHeader;
-			peptideRows = buildMokapotRows(dataset, peptideBest, pepScores, pepQ, pepPep, peptideHeader);
+			peptideRows = buildMokapotRows(
+				dataset,
+				peptideBest,
+				pepScores,
+				peptideConfidence.qValues(),
+				peptideConfidence.pepValues(),
+				peptideHeader
+			);
 		} else {
 			psmHeader = PERCOLATOR_HEADER;
-			psmRows = buildPercolatorRows(dataset, psmBest, psmScores, psmQ, psmPep);
+			psmRows = buildPercolatorRows(
+				dataset,
+				psmBest,
+				psmScores,
+				psmConfidence.qValues(),
+				psmConfidence.pepValues()
+			);
 			peptideHeader = PERCOLATOR_HEADER;
-			peptideRows = buildPercolatorRows(dataset, peptideBest, pepScores, pepQ, pepPep);
+			peptideRows = buildPercolatorRows(
+				dataset,
+				peptideBest,
+				pepScores,
+				peptideConfidence.qValues(),
+				peptideConfidence.pepValues()
+			);
 		}
-		int peptidesAtThreshold = countTargetsAtThreshold(pepTargets, pepQ, evalFdr);
+		int peptidesAtThreshold = countTargetsAtThreshold(pepTargets, peptideConfidence.qValues(), evalFdr);
 
 		return new OutputTables(psmHeader, psmRows, peptideHeader, peptideRows, peptidesAtThreshold);
+	}
+
+	private static ConfidenceResult estimateConfidence(
+		double[] scores,
+		boolean[] targets,
+		ConfidenceMode confidenceMode,
+		long seed
+	) {
+		double[] qValues;
+		double[] pepValues;
+		if (confidenceMode == ConfidenceMode.MIXMAX) {
+			qValues = MixMaxQValues.compute(scores, targets, true, seed, false, 0.5).qValues();
+			pepValues = PepEstimator.tdcToPep(scores, targets).pepValues();
+		} else {
+			qValues = QValues.tdc(scores, targets, true);
+			pepValues = PepEstimator.tdcQvalsToPep(scores, targets, qValues).pepValues();
+		}
+		return new ConfidenceResult(qValues, pepValues);
 	}
 
 	private static int countTargetsAtThreshold(boolean[] targets, double[] qvals, double evalFdr) {
@@ -412,8 +508,8 @@ public final class JavaPotRunner {
 		int count = 0;
 		for (int pos : orderedPos) {
 			int row = psmBest[pos];
-			String peptide = dataset.peptideAt(row);
-			if (seen.add(peptide)) {
+			String key = dataset.peptideAt(row) + "\u0001" + (dataset.targetAt(row) ? "T" : "D");
+			if (seen.add(key)) {
 				keep[count++] = row;
 			}
 		}
@@ -482,5 +578,8 @@ public final class JavaPotRunner {
 		List<String[]> peptideRows,
 		int peptidesAtThreshold
 	) {
+	}
+
+	private record ConfidenceResult(double[] qValues, double[] pepValues) {
 	}
 }

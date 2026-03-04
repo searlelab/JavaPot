@@ -28,10 +28,13 @@ public final class ScoreCalibrator {
 			}
 		}
 		if (positiveCount == 0) {
-			throw new RuntimeException("No target PSMs were below the eval_fdr threshold.");
+			return Arrays.copyOf(scores, scores.length);
+		}
+		if (!Double.isFinite(targetScore)) {
+			return Arrays.copyOf(scores, scores.length);
 		}
 		if (decoyCount == 0) {
-			throw new RuntimeException("No decoy PSMs were available for calibration.");
+			return shiftToAcceptedTarget(scores, targetScore);
 		}
 		double[] usedDecoys = Arrays.copyOf(decoys, decoyCount);
 		Arrays.sort(usedDecoys);
@@ -43,9 +46,20 @@ public final class ScoreCalibrator {
 			decoyMedian = usedDecoys[usedDecoys.length / 2];
 		}
 		double denominator = targetScore - decoyMedian;
+		if (!Double.isFinite(denominator) || Math.abs(denominator) < 1e-12) {
+			return shiftToAcceptedTarget(scores, targetScore);
+		}
 		double[] out = new double[scores.length];
 		for (int i = 0; i < scores.length; i++) {
 			out[i] = (scores[i] - targetScore) / denominator;
+		}
+		return out;
+	}
+
+	private static double[] shiftToAcceptedTarget(double[] scores, double targetScore) {
+		double[] out = new double[scores.length];
+		for (int i = 0; i < scores.length; i++) {
+			out[i] = scores[i] - targetScore;
 		}
 		return out;
 	}

@@ -20,7 +20,8 @@ public record CliConfig(
 	Integer subsetMaxTrain,
 	boolean saveModels,
 	List<Path> loadModels,
-	int folds
+	int folds,
+	boolean mixmax
 ) {
 	public static final double DEFAULT_FDR = 0.01;
 	public static final int DEFAULT_MAX_ITER = 10;

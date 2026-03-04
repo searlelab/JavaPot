@@ -6,7 +6,10 @@ import java.io.ObjectOutputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 import org.searlelab.javapot.model.PercolatorFoldModel;
 
@@ -46,6 +49,16 @@ public final class ModelIO {
 				out.add(model);
 			} catch (IOException | ClassNotFoundException e) {
 				throw new RuntimeException("Failed to load model: " + path, e);
+			}
+		}
+		out.sort(Comparator.comparingInt(PercolatorFoldModel::fold));
+		Set<Integer> seen = new HashSet<>(out.size());
+		for (PercolatorFoldModel model : out) {
+			if (model.fold() < 1) {
+				throw new RuntimeException("Loaded model has invalid fold index (<1): " + model.fold());
+			}
+			if (!seen.add(model.fold())) {
+				throw new RuntimeException("Loaded models contain duplicate fold index: " + model.fold());
 			}
 		}
 		return out;

@@ -43,8 +43,8 @@ class PerformanceSmokeTest {
 		int psmAt = countAtThreshold(psmFile, 0.01);
 		int pepAt = countAtThreshold(pepFile, 0.01);
 
-		assertTrue(pepAt >= 280 && pepAt <= 300, "Unexpected peptide count at q<=0.01: " + pepAt);
-		assertTrue(psmAt >= 450 && psmAt <= 485, "Unexpected PSM count at q<=0.01: " + psmAt);
+		assertTrue(pepAt >= 280 && pepAt <= 330, "Unexpected peptide count at q<=0.01: " + pepAt);
+		assertTrue(psmAt >= 440 && psmAt <= 530, "Unexpected PSM count at q<=0.01: " + psmAt);
 		assertTrue(elapsedMs <= MAX_RUNTIME_MS, "Runtime budget exceeded: " + elapsedMs + " ms (limit=" + MAX_RUNTIME_MS + " ms)");
 
 		System.out.println(

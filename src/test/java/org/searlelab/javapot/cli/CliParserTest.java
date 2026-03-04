@@ -1,6 +1,7 @@
 package org.searlelab.javapot.cli;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -24,6 +25,7 @@ class CliParserTest {
 		assertEquals(1L, cfg.seed());
 		assertEquals(3, cfg.folds());
 		assertTrue(cfg.loadModels().isEmpty());
+		assertFalse(cfg.mixmax());
 	}
 
 	@Test
@@ -79,6 +81,7 @@ class CliParserTest {
 			"--direction", "featA",
 			"--subset_max_train", "777",
 			"--output_format", "mokapot",
+			"--mixmax",
 			"--save_models",
 			"--folds", "5"
 		});
@@ -94,6 +97,13 @@ class CliParserTest {
 		assertEquals(OutputFormat.MOKAPOT, cfg.outputFormat());
 		assertTrue(cfg.saveModels());
 		assertEquals(5, cfg.folds());
+		assertTrue(cfg.mixmax());
+	}
+
+	@Test
+	void parsesMixmaxAlias() {
+		CliConfig cfg = CliParser.parse(new String[]{"input.pin", "--post-processing-mix-max"});
+		assertTrue(cfg.mixmax());
 	}
 
 	@Test
@@ -127,6 +137,7 @@ class CliParserTest {
 		assertTrue(help.contains("Usage: javapot"));
 		assertTrue(help.contains("--train_fdr"));
 		assertTrue(help.contains("--output_format"));
+		assertTrue(help.contains("--mixmax"));
 	}
 
 	@Test
