@@ -11,6 +11,7 @@ import java.nio.file.Path;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -98,6 +99,7 @@ class JavaPotBakeoffTest {
 		JavaPotBakeoff.BakeoffOutcome outcome = JavaPotBakeoff.runGreedyBakeoff(
 			List.of("A", "B", "C", "D"),
 			List.of("A"),
+			defaultDirectionalMap("A", "B", "C", "D"),
 			0.1,
 			featureSet -> {
 				String key = String.join(",", featureSet);
@@ -105,7 +107,7 @@ class JavaPotBakeoffTest {
 				if (value == null) {
 					throw new AssertionError("No score configured for feature set: " + key);
 				}
-				return value;
+				return new JavaPotBakeoff.TrialEvaluation(value, Set.of());
 			},
 			out
 		);
@@ -133,6 +135,7 @@ class JavaPotBakeoffTest {
 		JavaPotBakeoff.BakeoffOutcome outcome = JavaPotBakeoff.runGreedyBakeoff(
 			List.of("A", "B", "C", "D"),
 			List.of("A", "B"),
+			defaultDirectionalMap("A", "B", "C", "D"),
 			0.1,
 			featureSet -> {
 				String key = String.join(",", featureSet);
@@ -140,7 +143,7 @@ class JavaPotBakeoffTest {
 				if (value == null) {
 					throw new AssertionError("No score configured for feature set: " + key);
 				}
-				return value;
+				return new JavaPotBakeoff.TrialEvaluation(value, Set.of());
 			},
 			out
 		);
@@ -151,5 +154,49 @@ class JavaPotBakeoffTest {
 		assertTrue(log.contains("Starting with A, B"));
 		assertTrue(log.contains("1300 A, B, C"));
 		assertTrue(log.contains("Picking A, B, C to continue"));
+	}
+
+	@Test
+	void greedyBakeoffAnnotatesFlippedAndLevelFeatures() {
+		Map<String, Long> scores = new HashMap<>();
+		scores.put("A,B", 1000L);
+		scores.put("A,B,C", 1500L);
+
+		Map<String, JavaPotBakeoff.FeatureDirectionality> directionality = new HashMap<>();
+		directionality.put("A", JavaPotBakeoff.FeatureDirectionality.HIGH_TARGET_WHEN_HIGHER);
+		directionality.put("B", JavaPotBakeoff.FeatureDirectionality.LEVEL);
+		directionality.put("C", JavaPotBakeoff.FeatureDirectionality.HIGH_TARGET_WHEN_HIGHER);
+
+		ByteArrayOutputStream baos = new ByteArrayOutputStream();
+		PrintStream out = new PrintStream(baos);
+		JavaPotBakeoff.runGreedyBakeoff(
+			List.of("A", "B", "C"),
+			List.of("A", "B"),
+			directionality,
+			0.1,
+			featureSet -> {
+				String key = String.join(",", featureSet);
+				Long value = scores.get(key);
+				if (value == null) {
+					throw new AssertionError("No score configured for feature set: " + key);
+				}
+				Set<String> flipped = key.equals("A,B,C") ? Set.of("C") : Set.of();
+				return new JavaPotBakeoff.TrialEvaluation(value, flipped);
+			},
+			out
+		);
+
+		String log = baos.toString();
+		assertTrue(log.contains("Starting with A, B~"));
+		assertTrue(log.contains("1500 A, B~, C*"));
+		assertTrue(log.contains("Picking A, B~, C* to continue"));
+	}
+
+	private static Map<String, JavaPotBakeoff.FeatureDirectionality> defaultDirectionalMap(String... features) {
+		Map<String, JavaPotBakeoff.FeatureDirectionality> out = new HashMap<>();
+		for (String feature : features) {
+			out.put(feature, JavaPotBakeoff.FeatureDirectionality.HIGH_TARGET_WHEN_HIGHER);
+		}
+		return out;
 	}
 }

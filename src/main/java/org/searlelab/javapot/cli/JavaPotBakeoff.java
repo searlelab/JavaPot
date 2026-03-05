@@ -10,15 +10,21 @@ import java.util.Comparator;
 import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.LinkedHashMap;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
 import java.util.stream.Stream;
 
 import org.searlelab.javapot.data.PsmDataset;
+import org.searlelab.javapot.io.ModelIO;
 import org.searlelab.javapot.io.PinFileParser;
+import org.searlelab.javapot.model.PercolatorFoldModel;
 import org.searlelab.javapot.pipeline.JavaPotApi;
 import org.searlelab.javapot.pipeline.JavaPotPeptide;
 import org.searlelab.javapot.pipeline.JavaPotRunResult;
+import org.searlelab.javapot.stats.ConfidenceMode;
+import org.searlelab.javapot.stats.LabelUpdater;
 
 /**
  * JavaPotBakeoff performs greedy forward feature selection over one or more PIN files.
@@ -26,6 +32,8 @@ import org.searlelab.javapot.pipeline.JavaPotRunResult;
  */
 public final class JavaPotBakeoff {
 	private static final double DEFAULT_MIN_IMPROVEMENT_PERCENT = 0.1;
+	private static final double LEVEL_DIRECTIONALITY_THRESHOLD = 0.02;
+	private static final double COEFFICIENT_SIGN_EPSILON = 1e-8;
 
 	private JavaPotBakeoff() {
 	}
@@ -190,6 +198,9 @@ public final class JavaPotBakeoff {
 			  --max_retries N       Re-fold retries after no-label fold failures. Default: 1.
 			  --mixmax, --post-processing-mix-max
 			                        Use Percolator mix-max post-processing.
+			Output annotations:
+			  feature*             Feature coefficient sign flipped against baseline direction.
+			  feature~             Feature has a minimal directionality vector (level / near non-directional).
 		""";
 		System.out.println(help);
 	}
@@ -219,11 +230,14 @@ public final class JavaPotBakeoff {
 		}
 
 		try {
+			Map<String, FeatureDirectionality> directionality = computeDirectionality(sources, featureNames, config);
+			printDirectionalitySummary(directionality);
 			BakeoffOutcome outcome = runGreedyBakeoff(
 				featureNames,
 				config.requiredStartFeatures(),
+				directionality,
 				config.minImprovementPercent(),
-				featureSet -> evaluateAcrossSources(sources, featureSet, config, workDir),
+				featureSet -> evaluateAcrossSources(sources, featureSet, config, directionality, workDir),
 				System.out
 			);
 			System.out.println("Final feature set: " + joinFeatures(outcome.keptFeatures()));
@@ -237,6 +251,7 @@ public final class JavaPotBakeoff {
 	static BakeoffOutcome runGreedyBakeoff(
 		List<String> allFeatures,
 		List<String> startFeatures,
+		Map<String, FeatureDirectionality> directionality,
 		double minImprovementPercent,
 		FeatureSetEvaluator evaluator,
 		PrintStream out
@@ -263,26 +278,30 @@ public final class JavaPotBakeoff {
 			}
 		}
 
-		long currentTotal = evaluator.evaluate(List.copyOf(kept));
-		out.println("Starting with " + joinFeatures(kept));
+		TrialEvaluation current = evaluator.evaluate(List.copyOf(kept));
+		long currentTotal = current.totalPeptides();
+		out.println("Starting with " + formatFeaturesForOutput(kept, directionality, current.flippedFeatures()));
 
 		while (!remaining.isEmpty()) {
 			String bestCandidate = null;
-			long bestTotal = Long.MIN_VALUE;
+			TrialEvaluation bestTrial = null;
 			for (String candidate : remaining) {
 				List<String> trial = new ArrayList<>(kept.size() + 1);
 				trial.addAll(kept);
 				trial.add(candidate);
-				long trialTotal = evaluator.evaluate(List.copyOf(trial));
-				out.println(trialTotal + " " + joinFeatures(trial));
-				if (bestCandidate == null || trialTotal > bestTotal) {
+				TrialEvaluation trialResult = evaluator.evaluate(List.copyOf(trial));
+				out.println(
+					trialResult.totalPeptides() + " " +
+						formatFeaturesForOutput(trial, directionality, trialResult.flippedFeatures())
+				);
+				if (bestCandidate == null || trialResult.totalPeptides() > bestTrial.totalPeptides()) {
 					bestCandidate = candidate;
-					bestTotal = trialTotal;
+					bestTrial = trialResult;
 				}
 			}
 
-			if (!improvesMoreThanThreshold(currentTotal, bestTotal, minImprovementPercent)) {
-				double pct = percentImprovement(currentTotal, bestTotal);
+			if (!improvesMoreThanThreshold(currentTotal, bestTrial.totalPeptides(), minImprovementPercent)) {
+				double pct = percentImprovement(currentTotal, bestTrial.totalPeptides());
 				out.println(
 					String.format(
 						Locale.US,
@@ -296,24 +315,29 @@ public final class JavaPotBakeoff {
 
 			kept.add(bestCandidate);
 			remaining.remove(bestCandidate);
-			currentTotal = bestTotal;
-			out.println("Picking " + joinFeatures(kept) + " to continue");
+			current = bestTrial;
+			currentTotal = current.totalPeptides();
+			out.println("Picking " + formatFeaturesForOutput(kept, directionality, current.flippedFeatures()) + " to continue");
 		}
 
 		return new BakeoffOutcome(List.copyOf(kept), currentTotal);
 	}
 
-	private static long evaluateAcrossSources(
+	private static TrialEvaluation evaluateAcrossSources(
 		List<SourcePin> sources,
 		List<String> selectedFeatures,
 		BakeoffConfig config,
+		Map<String, FeatureDirectionality> directionality,
 		Path workDir
 	) {
 		long total = 0L;
+		Map<String, Double> coefficientSums = new LinkedHashMap<>();
+		Map<String, Integer> coefficientCounts = new LinkedHashMap<>();
 		for (int i = 0; i < sources.size(); i++) {
 			SourcePin source = sources.get(i);
 			Path subsetPin = workDir.resolve("source_" + i + ".pin");
 			Path targetPeptides = workDir.resolve("source_" + i + ".targets.peptides.tsv");
+			Path savedModel = workDir.resolve("source_" + i + ".model.tsv");
 			writeSubsetPin(source, selectedFeatures, subsetPin);
 			JavaPotOptions options = new JavaPotOptions(
 				subsetPin,
@@ -327,7 +351,7 @@ public final class JavaPotBakeoff {
 				config.seed(),
 				config.direction(),
 				config.subsetMaxTrain(),
-				null,
+				savedModel,
 				false,
 				false,
 				targetPeptides,
@@ -341,8 +365,18 @@ public final class JavaPotBakeoff {
 			);
 			JavaPotRunResult result = JavaPotApi.run(options);
 			total += countAcceptedTargetPeptides(result.peptides(), config.testFdr());
+			if (Files.exists(savedModel)) {
+				List<PercolatorFoldModel> models = ModelIO.loadModels(savedModel);
+				accumulateFeatureCoefficientStats(models, selectedFeatures, coefficientSums, coefficientCounts);
+			}
 		}
-		return total;
+		Set<String> flipped = detectFlippedDirectionalFeatures(
+			selectedFeatures,
+			coefficientSums,
+			coefficientCounts,
+			directionality
+		);
+		return new TrialEvaluation(total, flipped);
 	}
 
 	private static long countAcceptedTargetPeptides(List<JavaPotPeptide> peptides, double testFdr) {
@@ -353,6 +387,150 @@ public final class JavaPotBakeoff {
 			}
 		}
 		return count;
+	}
+
+	private static Map<String, FeatureDirectionality> computeDirectionality(
+		List<SourcePin> sources,
+		List<String> featureNames,
+		BakeoffConfig config
+	) {
+		Map<String, FeatureDirectionality> out = new LinkedHashMap<>();
+		ConfidenceMode mode = config.mixmax() ? ConfidenceMode.MIXMAX : ConfidenceMode.TDC;
+		for (int featureIndex = 0; featureIndex < featureNames.size(); featureIndex++) {
+			String feature = featureNames.get(featureIndex);
+			long descendingPass = 0L;
+			long ascendingPass = 0L;
+			for (int sourceIndex = 0; sourceIndex < sources.size(); sourceIndex++) {
+				PsmDataset dataset = sources.get(sourceIndex).dataset();
+				double[] scores = dataset.featureColumn(feature);
+				boolean[] targets = dataset.rawTargets();
+				long descSeed = config.seed() + (featureIndex * 2L) + (sourceIndex * 101L);
+				long ascSeed = descSeed + 1L;
+				descendingPass += countPositiveLabels(
+					LabelUpdater.updateLabels(scores, targets, config.trainFdr(), true, mode, descSeed, true)
+				);
+				ascendingPass += countPositiveLabels(
+					LabelUpdater.updateLabels(scores, targets, config.trainFdr(), false, mode, ascSeed, true)
+				);
+			}
+			out.put(feature, classifyDirectionality(descendingPass, ascendingPass));
+		}
+		return out;
+	}
+
+	private static void printDirectionalitySummary(Map<String, FeatureDirectionality> directionality) {
+		int high = 0;
+		int low = 0;
+		int level = 0;
+		for (FeatureDirectionality value : directionality.values()) {
+			switch (value) {
+				case HIGH_TARGET_WHEN_HIGHER -> high++;
+				case HIGH_TARGET_WHEN_LOWER -> low++;
+				case LEVEL -> level++;
+			}
+		}
+		System.out.println(
+			"Directionality baseline: " + high + " high-is-target, " + low + " low-is-target, " + level + " level (~)."
+		);
+	}
+
+	private static long countPositiveLabels(int[] labels) {
+		long count = 0L;
+		for (int label : labels) {
+			if (label > 0) {
+				count++;
+			}
+		}
+		return count;
+	}
+
+	private static FeatureDirectionality classifyDirectionality(long descendingPass, long ascendingPass) {
+		long best = Math.max(descendingPass, ascendingPass);
+		long diff = Math.abs(descendingPass - ascendingPass);
+		if (best <= 0) {
+			return FeatureDirectionality.LEVEL;
+		}
+		double ratio = diff / (double) best;
+		if (ratio < LEVEL_DIRECTIONALITY_THRESHOLD) {
+			return FeatureDirectionality.LEVEL;
+		}
+		return descendingPass >= ascendingPass
+			? FeatureDirectionality.HIGH_TARGET_WHEN_HIGHER
+			: FeatureDirectionality.HIGH_TARGET_WHEN_LOWER;
+	}
+
+	private static void accumulateFeatureCoefficientStats(
+		List<PercolatorFoldModel> models,
+		List<String> selectedFeatures,
+		Map<String, Double> coefficientSums,
+		Map<String, Integer> coefficientCounts
+	) {
+		for (PercolatorFoldModel model : models) {
+			String[] names = model.featureNames();
+			double[] weights = model.svm().weights();
+			Map<String, Double> byFeature = new LinkedHashMap<>();
+			for (int i = 0; i < names.length; i++) {
+				byFeature.put(names[i], weights[i]);
+			}
+			for (String feature : selectedFeatures) {
+				Double weight = byFeature.get(feature);
+				if (weight == null) {
+					continue;
+				}
+				coefficientSums.merge(feature, weight, Double::sum);
+				coefficientCounts.merge(feature, 1, Integer::sum);
+			}
+		}
+	}
+
+	private static Set<String> detectFlippedDirectionalFeatures(
+		List<String> selectedFeatures,
+		Map<String, Double> coefficientSums,
+		Map<String, Integer> coefficientCounts,
+		Map<String, FeatureDirectionality> directionality
+	) {
+		Set<String> flipped = new HashSet<>();
+		for (String feature : selectedFeatures) {
+			FeatureDirectionality expected = directionality.getOrDefault(feature, FeatureDirectionality.LEVEL);
+			if (expected == FeatureDirectionality.LEVEL) {
+				continue;
+			}
+			int count = coefficientCounts.getOrDefault(feature, 0);
+			if (count <= 0) {
+				continue;
+			}
+			double meanWeight = coefficientSums.getOrDefault(feature, 0.0) / count;
+			if (Math.abs(meanWeight) < COEFFICIENT_SIGN_EPSILON) {
+				continue;
+			}
+			boolean observedHighIsTarget = meanWeight > 0.0;
+			boolean expectedHighIsTarget = expected == FeatureDirectionality.HIGH_TARGET_WHEN_HIGHER;
+			if (observedHighIsTarget != expectedHighIsTarget) {
+				flipped.add(feature);
+			}
+		}
+		return flipped;
+	}
+
+	private static String formatFeaturesForOutput(
+		List<String> features,
+		Map<String, FeatureDirectionality> directionality,
+		Set<String> flippedFeatures
+	) {
+		List<String> out = new ArrayList<>(features.size());
+		for (String feature : features) {
+			FeatureDirectionality dir = directionality.getOrDefault(feature, FeatureDirectionality.LEVEL);
+			if (dir == FeatureDirectionality.LEVEL) {
+				out.add(feature + "~");
+				continue;
+			}
+			if (flippedFeatures.contains(feature)) {
+				out.add(feature + "*");
+				continue;
+			}
+			out.add(feature);
+		}
+		return String.join(", ", out);
 	}
 
 	private static void writeSubsetPin(SourcePin source, List<String> selectedFeatures, Path outPin) {
@@ -519,7 +697,7 @@ public final class JavaPotBakeoff {
 
 	@FunctionalInterface
 	interface FeatureSetEvaluator {
-		long evaluate(List<String> featureSet);
+		TrialEvaluation evaluate(List<String> featureSet);
 	}
 
 	record BakeoffConfig(
@@ -544,6 +722,18 @@ public final class JavaPotBakeoff {
 		List<String> keptFeatures,
 		long totalPeptides
 	) {
+	}
+
+	record TrialEvaluation(
+		long totalPeptides,
+		Set<String> flippedFeatures
+	) {
+	}
+
+	enum FeatureDirectionality {
+		HIGH_TARGET_WHEN_HIGHER,
+		HIGH_TARGET_WHEN_LOWER,
+		LEVEL
 	}
 
 	private record SourcePin(
