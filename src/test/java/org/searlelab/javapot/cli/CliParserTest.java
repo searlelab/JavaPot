@@ -26,6 +26,7 @@ class CliParserTest {
 		assertEquals(10, cfg.maxIter());
 		assertEquals(1L, cfg.seed());
 		assertEquals(3, cfg.folds());
+		assertEquals(1, cfg.maxRetries());
 		assertFalse(cfg.writePsmFiles());
 		assertFalse(cfg.writeDecoyFiles());
 		assertNull(cfg.resultsPeptides());
@@ -100,7 +101,8 @@ class CliParserTest {
 			"--write_decoy_files",
 			"--mixmax",
 			"--write_model_files",
-			"--folds", "5"
+			"--folds", "5",
+			"--max_retries", "4"
 		});
 		assertEquals(Path.of("input.pin"), cfg.pinFile());
 		assertEquals(Path.of("/tmp/out"), cfg.destDir());
@@ -117,6 +119,7 @@ class CliParserTest {
 		assertTrue(cfg.writePsmFiles());
 		assertTrue(cfg.writeDecoyFiles());
 		assertEquals(5, cfg.folds());
+		assertEquals(4, cfg.maxRetries());
 		assertTrue(cfg.mixmax());
 	}
 
@@ -180,6 +183,9 @@ class CliParserTest {
 		assertThrows(IllegalArgumentException.class, () -> CliParser.parse(new String[]{"input.pin", "--max_workers", "0"}));
 		assertThrows(IllegalArgumentException.class, () -> CliParser.parse(new String[]{"input.pin", "--max_workers", "abc"}));
 		assertThrows(IllegalArgumentException.class, () -> CliParser.parse(new String[]{"input.pin", "--folds", "1"}));
+		assertThrows(IllegalArgumentException.class, () -> CliParser.parse(new String[]{"input.pin", "--max_retries"}));
+		assertThrows(IllegalArgumentException.class, () -> CliParser.parse(new String[]{"input.pin", "--max_retries", "-1"}));
+		assertThrows(IllegalArgumentException.class, () -> CliParser.parse(new String[]{"input.pin", "--max_retries", "abc"}));
 		assertThrows(IllegalArgumentException.class, () -> CliParser.parse(new String[]{"input.pin", "--max_iter", "0"}));
 		assertThrows(IllegalArgumentException.class, () -> CliParser.parse(new String[]{"input.pin", "--max_iter", "xyz"}));
 		assertThrows(IllegalArgumentException.class, () -> CliParser.parse(new String[]{"input.pin", "--subset_max_train", "0"}));
@@ -214,6 +220,7 @@ class CliParserTest {
 		assertTrue(help.contains("--post-processing-mix-max"));
 		assertTrue(help.contains("--quiet"));
 		assertTrue(help.contains("--write_model_files"));
+		assertTrue(help.contains("--max_retries"));
 		assertTrue(help.contains("--weights"));
 		assertTrue(help.contains("--init-weights"));
 		assertTrue(help.contains("--write_psm_files"));

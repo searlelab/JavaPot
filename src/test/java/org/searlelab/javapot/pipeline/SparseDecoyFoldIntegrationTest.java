@@ -44,6 +44,7 @@ class SparseDecoyFoldIntegrationTest {
 			null,
 			null,
 			3,
+			1,
 			false
 		);
 		JavaPotRunner.run(config);

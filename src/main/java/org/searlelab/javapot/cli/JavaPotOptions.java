@@ -27,12 +27,14 @@ public record JavaPotOptions(
 	Path decoyResultsPsms,
 	Path loadModelFile,
 	int folds,
+	int maxRetries,
 	boolean mixmax
 ) {
 	public static final double DEFAULT_FDR = 0.01;
 	public static final int DEFAULT_MAX_ITER = 10;
 	public static final long DEFAULT_SEED = 1L;
 	public static final int DEFAULT_FOLDS = 3;
+	public static final int DEFAULT_MAX_RETRIES = 1;
 
 	public JavaPotOptions(
 		Path pinFile,
@@ -65,6 +67,7 @@ public record JavaPotOptions(
 			null,
 			loadModelFile,
 			DEFAULT_FOLDS,
+			DEFAULT_MAX_RETRIES,
 			mixmax
 		);
 	}

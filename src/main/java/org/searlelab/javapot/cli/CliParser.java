@@ -44,6 +44,7 @@ public final class CliParser {
 		Path decoyResultsPsms = null;
 		Path loadModelFile = null;
 		int folds = JavaPotOptions.DEFAULT_FOLDS;
+		int maxRetries = JavaPotOptions.DEFAULT_MAX_RETRIES;
 		boolean mixmax = false;
 		List<String> positional = new ArrayList<>();
 
@@ -119,6 +120,9 @@ public final class CliParser {
 				case "--folds" -> {
 					folds = parseInt(requireValue(args, ++i, arg), arg);
 				}
+				case "--max_retries" -> {
+					maxRetries = parseInt(requireValue(args, ++i, arg), arg);
+				}
 				default -> {
 					if (arg.startsWith("-")) {
 						throw new IllegalArgumentException("Unknown option: " + arg);
@@ -144,6 +148,9 @@ public final class CliParser {
 		}
 		if (folds < 2) {
 			throw new IllegalArgumentException("--folds must be >= 2");
+		}
+		if (maxRetries < 0) {
+			throw new IllegalArgumentException("--max_retries must be >= 0");
 		}
 		if (maxIter < 1) {
 			throw new IllegalArgumentException("--max_iter must be >= 1");
@@ -184,6 +191,7 @@ public final class CliParser {
 			decoyResultsPsms,
 			loadModelFile,
 			folds,
+			maxRetries,
 			mixmax
 		);
 	}
@@ -229,6 +237,8 @@ public final class CliParser {
 			  --load_models PATH, --init-weights PATH    
 			                        Load Percolator-style text model file and skip model training.
 			  --folds FOLDS         Number of cross-validation folds. Default: 3.
+			  --max_retries MAX_RETRIES
+			                        Number of re-fold attempts after no-label fold failures. Default: 1.
 		""";
 		System.out.println(help);
 	}

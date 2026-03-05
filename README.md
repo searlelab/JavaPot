@@ -66,6 +66,8 @@ Options:
   --load_models PATH, --init-weights PATH    
                         Load Percolator-style text model file and skip model training.
   --folds FOLDS         Number of cross-validation folds. Default: 3.
+  --max_retries MAX_RETRIES
+                        Number of re-fold attempts after no-label fold failures. Default: 1.
 ```
 
 ## Programmatic API

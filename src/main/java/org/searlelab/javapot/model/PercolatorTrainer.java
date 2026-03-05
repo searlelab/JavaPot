@@ -1,5 +1,8 @@
 package org.searlelab.javapot.model;
 
+import java.math.BigDecimal;
+import java.math.MathContext;
+import java.math.RoundingMode;
 import java.util.Arrays;
 
 import org.searlelab.javapot.data.PsmDataset;
@@ -39,10 +42,11 @@ public final class PercolatorTrainer {
 			params.seed(),
 			!hasDecoys
 		);
+		String trainFdrText = formatThreshold(params.trainFdr());
 		if (countOnes(start.labels()) == 0) {
-			throw new RuntimeException("No PSMs accepted at train_fdr=" + params.trainFdr());
+			throw new RuntimeException("No PSMs accepted at train_fdr=" + trainFdrText);
 		}
-		log(params, "Fold " + fold + " selected feature '" + start.bestFeature() + "' with " + start.bestPass() + " PSMs at q<=" + params.trainFdr() + ".");
+		log(params, "Fold " + fold + " selected feature '" + start.bestFeature() + "' with " + start.bestPass() + " PSMs at q<=" + trainFdrText + ".");
 
 		StandardScaler scaler = new StandardScaler();
 		double[][] norm = scaler.fitTransform(raw);
@@ -290,6 +294,16 @@ public final class PercolatorTrainer {
 			return;
 		}
 		System.out.println(message);
+	}
+
+	private static String formatThreshold(double value) {
+		if (!Double.isFinite(value)) {
+			return Double.toString(value);
+		}
+		return BigDecimal.valueOf(value)
+			.round(new MathContext(6, RoundingMode.HALF_UP))
+			.stripTrailingZeros()
+			.toPlainString();
 	}
 
 	/**

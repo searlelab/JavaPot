@@ -41,6 +41,7 @@ import org.searlelab.javapot.util.StableIntSort;
  * It drives parsing, fold training or model loading, scoring, confidence estimation, and TSV output writing.
  */
 public final class JavaPotRunner {
+	private static final long REFOLD_SEED_STRIDE = 10_007L;
 	private static final String MOKAPOT_SCORE = "mokapot_score";
 	private static final String MOKAPOT_QVALUE = "mokapot_qvalue";
 	private static final String MOKAPOT_PEP = "mokapot_posterior_error_prob";
@@ -72,27 +73,70 @@ public final class JavaPotRunner {
 		printDatasetInfo(dataset, config);
 		OutputPlan outputPlan = buildOutputPlan(config);
 
-		DeterministicRandom rng = new DeterministicRandom(config.seed());
-		int[][] folds = FoldSplitter.split(dataset, config.folds(), rng, config.pinFile().getFileName().toString());
-		List<PercolatorFoldModel> models;
+		ConfidenceMode confidenceMode = config.mixmax() ? ConfidenceMode.MIXMAX : ConfidenceMode.TDC;
+		List<PercolatorFoldModel> models = new ArrayList<>();
+		boolean forceNoDetections = false;
+		double[] finalScores;
 		if (config.loadModelFile() != null) {
+			DeterministicRandom rng = new DeterministicRandom(config.seed());
+			int[][] folds = FoldSplitter.split(dataset, config.folds(), rng, config.pinFile().getFileName().toString());
 			models = ModelIO.loadModels(config.loadModelFile());
 			validateLoadedModelFolds(models, config.folds());
+			double[] scores = predictScores(dataset, folds, models, config.testFdr());
+			finalScores = maybeFallbackToBestFeature(
+				dataset,
+				models,
+				scores,
+				config.testFdr(),
+				confidenceMode,
+				config.seed(),
+				config.quiet()
+			);
 		} else {
-			models = trainModels(dataset, folds, config, rng);
+			FeatureStartChoice startChoice = chooseStartFeature(
+				dataset,
+				config.direction(),
+				config.trainFdr(),
+				confidenceMode,
+				config.seed()
+			);
+			if (startChoice.passCount() <= 0) {
+				forceNoDetections = true;
+				log(
+					config,
+					"No target PSMs found below train_fdr=" + config.trainFdr() +
+						"; skipping model training and forcing q-value/PEP to 1.0."
+				);
+				finalScores = scoreByFeatureDirection(dataset, startChoice.featureName(), startChoice.descending());
+			} else {
+				DeterministicRandom rng = new DeterministicRandom(config.seed());
+				int[][] folds = FoldSplitter.split(dataset, config.folds(), rng, config.pinFile().getFileName().toString());
+				try {
+					models = trainModels(dataset, folds, config, rng);
+					double[] scores = predictScores(dataset, folds, models, config.testFdr());
+					finalScores = maybeFallbackToBestFeature(
+						dataset,
+						models,
+						scores,
+						config.testFdr(),
+						confidenceMode,
+						config.seed(),
+						config.quiet()
+					);
+				} catch (RuntimeException e) {
+					TrainingRecovery recovery = recoverFromFoldTrainingFailure(
+						dataset,
+						config,
+						confidenceMode,
+						startChoice,
+						e
+					);
+					models = recovery.models();
+					forceNoDetections = recovery.forceNoDetections();
+					finalScores = recovery.scores();
+				}
+			}
 		}
-		ConfidenceMode confidenceMode = config.mixmax() ? ConfidenceMode.MIXMAX : ConfidenceMode.TDC;
-
-		double[] scores = predictScores(dataset, folds, models, config.testFdr());
-		double[] finalScores = maybeFallbackToBestFeature(
-			dataset,
-			models,
-			scores,
-			config.testFdr(),
-			confidenceMode,
-			config.seed(),
-			config.quiet()
-		);
 
 		OutputTables tables = assignConfidenceAndBuildOutputs(
 			dataset,
@@ -100,14 +144,19 @@ public final class JavaPotRunner {
 			config.testFdr(),
 			config.outputFormat(),
 			confidenceMode,
-			config.seed()
+			config.seed(),
+			forceNoDetections
 		);
 
 		List<Path> writtenPaths = writeOutputTables(tables, outputPlan);
 
 		if (config.saveModelFile() != null) {
-			ensureParentDirectory(config.saveModelFile());
-			ModelIO.saveModels(models, config.saveModelFile());
+			if (models.isEmpty()) {
+				log(config, "Skipping model write because no models were trained.");
+			} else {
+				ensureParentDirectory(config.saveModelFile());
+				ModelIO.saveModels(models, config.saveModelFile());
+			}
 		}
 
 		log(config, "Found " + tables.peptidesAtThreshold() + " peptides with q<=" + config.testFdr());
@@ -356,6 +405,152 @@ public final class JavaPotRunner {
 		}
 	}
 
+	private static TrainingRecovery recoverFromFoldTrainingFailure(
+		PsmDataset dataset,
+		JavaPotOptions config,
+		ConfidenceMode confidenceMode,
+		FeatureStartChoice startChoice,
+		RuntimeException trainingError
+	) {
+		if (!isNoTrainingPassFailure(trainingError)) {
+			throw trainingError;
+		}
+
+		for (int retry = 1; retry <= config.maxRetries(); retry++) {
+			long retrySeed = config.seed() + (REFOLD_SEED_STRIDE * retry);
+			log(
+				config,
+				"Fold training failed due to a no-label fold; re-folding attempt " + retry + "/" + config.maxRetries() + "."
+			);
+			try {
+				DeterministicRandom retryRng = new DeterministicRandom(retrySeed);
+				int[][] retryFolds = FoldSplitter.split(dataset, config.folds(), retryRng, config.pinFile().getFileName().toString());
+				List<PercolatorFoldModel> retryModels = trainModels(dataset, retryFolds, config, retryRng);
+				double[] retryScores = predictScores(dataset, retryFolds, retryModels, config.testFdr());
+				double[] finalScores = maybeFallbackToBestFeature(
+					dataset,
+					retryModels,
+					retryScores,
+					config.testFdr(),
+					confidenceMode,
+					config.seed(),
+					config.quiet()
+				);
+				log(config, "Recovered from fold training failure after re-folding.");
+				return new TrainingRecovery(retryModels, finalScores, false);
+			} catch (RuntimeException retryError) {
+				if (!isNoTrainingPassFailure(retryError)) {
+					throw retryError;
+				}
+			}
+		}
+
+		log(
+			config,
+			"Re-fold attempts exhausted (or disabled); forcing q-value/PEP to 1.0."
+		);
+		double[] fallbackScores = scoreByFeatureDirection(dataset, startChoice.featureName(), startChoice.descending());
+		return new TrainingRecovery(new ArrayList<>(), fallbackScores, true);
+	}
+
+	private static FeatureStartChoice chooseStartFeature(
+		PsmDataset dataset,
+		String direction,
+		double trainFdr,
+		ConfidenceMode confidenceMode,
+		long seed
+	) {
+		String[] featureNames = dataset.featureNames();
+		boolean[] targets = dataset.rawTargets();
+		if (featureNames.length == 0) {
+			throw new IllegalStateException("No feature columns available for scoring.");
+		}
+
+		if (direction != null) {
+			int featureIdx = -1;
+			for (int i = 0; i < featureNames.length; i++) {
+				if (featureNames[i].equals(direction)) {
+					featureIdx = i;
+					break;
+				}
+			}
+			if (featureIdx < 0) {
+				throw new IllegalArgumentException("Direction feature not found: " + direction);
+			}
+			double[] scores = dataset.featureColumn(direction);
+			int descPass = countTrainingPasses(scores, targets, trainFdr, true, confidenceMode, seed);
+			int ascPass = countTrainingPasses(scores, targets, trainFdr, false, confidenceMode, seed + 1L);
+			boolean descending = descPass >= ascPass;
+			int passCount = descending ? descPass : ascPass;
+			return new FeatureStartChoice(direction, descending, passCount);
+		}
+
+		String bestFeature = featureNames[0];
+		boolean bestDesc = true;
+		int bestPass = Integer.MIN_VALUE;
+		for (int j = 0; j < featureNames.length; j++) {
+			double[] scores = dataset.featureColumn(featureNames[j]);
+			for (boolean desc : new boolean[]{true, false}) {
+				long labelSeed = seed + (j * 2L) + (desc ? 0L : 1L);
+				int pass = countTrainingPasses(scores, targets, trainFdr, desc, confidenceMode, labelSeed);
+				if (pass > bestPass) {
+					bestPass = pass;
+					bestFeature = featureNames[j];
+					bestDesc = desc;
+				}
+			}
+		}
+		return new FeatureStartChoice(bestFeature, bestDesc, Math.max(bestPass, 0));
+	}
+
+	private static int countTrainingPasses(
+		double[] scores,
+		boolean[] targets,
+		double trainFdr,
+		boolean desc,
+		ConfidenceMode confidenceMode,
+		long seed
+	) {
+		boolean skipDecoysPlusOne = true;
+		int[] labels = LabelUpdater.updateLabels(
+			scores,
+			targets,
+			trainFdr,
+			desc,
+			confidenceMode,
+			seed,
+			skipDecoysPlusOne
+		);
+		return countOnes(labels);
+	}
+
+	private static double[] scoreByFeatureDirection(PsmDataset dataset, String featureName, boolean descending) {
+		double[] scores = dataset.featureColumn(featureName);
+		if (!descending) {
+			for (int i = 0; i < scores.length; i++) {
+				scores[i] = -scores[i];
+			}
+		}
+		return scores;
+	}
+
+	private static boolean isNoTrainingPassFailure(Throwable error) {
+		Throwable cursor = error;
+		while (cursor != null) {
+			String message = cursor.getMessage();
+			if (message != null) {
+				if (message.contains("No PSMs found below train_fdr for any feature.")) {
+					return true;
+				}
+				if (message.startsWith("No PSMs accepted at train_fdr=")) {
+					return true;
+				}
+			}
+			cursor = cursor.getCause();
+		}
+		return false;
+	}
+
 	private static double[] maybeFallbackToBestFeature(
 		PsmDataset dataset,
 		List<PercolatorFoldModel> models,
@@ -404,7 +599,8 @@ public final class JavaPotRunner {
 		double evalFdr,
 		OutputFormat outputFormat,
 		ConfidenceMode confidenceMode,
-		long seed
+		long seed,
+		boolean forceNoDetections
 	) {
 		int[] psmBest = confidenceMode == ConfidenceMode.MIXMAX
 			? sortedIndicesByScore(scores)
@@ -413,11 +609,15 @@ public final class JavaPotRunner {
 
 		double[] psmScores = gather(scores, psmBest);
 		boolean[] psmTargets = gatherTargets(dataset.rawTargets(), psmBest);
-		ConfidenceResult psmConfidence = estimateConfidence(psmScores, psmTargets, confidenceMode, seed + 131L);
+		ConfidenceResult psmConfidence = forceNoDetections
+			? forcedNoDetections(psmScores.length)
+			: estimateConfidence(psmScores, psmTargets, confidenceMode, seed + 131L);
 
 		double[] pepScores = gather(scores, peptideBest);
 		boolean[] pepTargets = gatherTargets(dataset.rawTargets(), peptideBest);
-		ConfidenceResult peptideConfidence = estimateConfidence(pepScores, pepTargets, confidenceMode, seed + 197L);
+		ConfidenceResult peptideConfidence = forceNoDetections
+			? forcedNoDetections(pepScores.length)
+			: estimateConfidence(pepScores, pepTargets, confidenceMode, seed + 197L);
 		ArrayList<JavaPotPeptide> psmResults = buildApiRows(
 			dataset,
 			psmBest,
@@ -550,6 +750,14 @@ public final class JavaPotRunner {
 			pepValues = PepEstimator.tdcQvalsToPep(scores, targets, qValues).pepValues();
 		}
 		return new ConfidenceResult(qValues, pepValues, pi0);
+	}
+
+	private static ConfidenceResult forcedNoDetections(int length) {
+		double[] qValues = new double[length];
+		double[] pepValues = new double[length];
+		Arrays.fill(qValues, 1.0);
+		Arrays.fill(pepValues, 1.0);
+		return new ConfidenceResult(qValues, pepValues, null);
 	}
 
 	private static int countTargetsAtThreshold(boolean[] targets, double[] qvals, double evalFdr) {
@@ -798,6 +1006,12 @@ public final class JavaPotRunner {
 		Path decoyPsmPath,
 		Path decoyPeptidePath
 	) {
+	}
+
+	private record FeatureStartChoice(String featureName, boolean descending, int passCount) {
+	}
+
+	private record TrainingRecovery(List<PercolatorFoldModel> models, double[] scores, boolean forceNoDetections) {
 	}
 
 	private record ConfidenceResult(double[] qValues, double[] pepValues, Double pi0) {
