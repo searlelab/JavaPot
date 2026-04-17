@@ -74,18 +74,18 @@ class PinFileParserTest {
 	}
 
 	@Test
-	void parsesScanRankAsOptionalMetadata() throws IOException {
-		Path file = tmp.resolve("scan_rank.pin");
+	void parsesPsmGroupAsOptionalMetadata() throws IOException {
+		Path file = tmp.resolve("psm_group.pin");
 		Files.writeString(file, String.join("\n",
-			"SpecId\tLabel\tScanNr\tscan_rank\tExpMass\tfeatA\tPeptide\tProteins",
+			"SpecId\tLabel\tScanNr\tpsm_group\tExpMass\tfeatA\tPeptide\tProteins",
 			"a\t1\t10\t1.0\t100.0\t1.0\tPEP\tP1",
-			"b\t-1\t11\t2.6\t101.0\t2.0\tPEQ\tP2"
+			"b\t-1\t11\t4.6\t101.0\t2.0\tPEQ\tP2"
 		));
 
 		PsmDataset ds = PinFileParser.read(file);
-		assertEquals("scan_rank", ds.columnGroups().optionalColumns().scanRank());
-		assertEquals(1, ds.scanRankAt(0));
-		assertEquals(3, ds.scanRankAt(1));
+		assertEquals("psm_group", ds.columnGroups().optionalColumns().psmGroup());
+		assertEquals(1, ds.psmGroupAt(0));
+		assertEquals(5, ds.psmGroupAt(1));
 	}
 
 	@Test
@@ -156,18 +156,21 @@ class PinFileParserTest {
 	}
 
 	@Test
-	void rejectsInvalidScanRankValues() throws IOException {
-		assertThrows(IllegalArgumentException.class, () -> PinFileParser.read(writeScanRankFile("blank.pin", "")));
-		assertThrows(IllegalArgumentException.class, () -> PinFileParser.read(writeScanRankFile("text.pin", "abc")));
-		assertThrows(IllegalArgumentException.class, () -> PinFileParser.read(writeScanRankFile("zero.pin", "0")));
-		assertThrows(IllegalArgumentException.class, () -> PinFileParser.read(writeScanRankFile("negative.pin", "-1")));
+	void rejectsInvalidPsmGroupValues() throws IOException {
+		assertThrows(IllegalArgumentException.class, () -> PinFileParser.read(writePsmGroupFile("blank.pin", "")));
+		assertThrows(IllegalArgumentException.class, () -> PinFileParser.read(writePsmGroupFile("text.pin", "abc")));
+		assertThrows(IllegalArgumentException.class, () -> PinFileParser.read(writePsmGroupFile("zero.pin", "0")));
+		assertThrows(IllegalArgumentException.class, () -> PinFileParser.read(writePsmGroupFile("subunit.pin", "0.4")));
+		assertThrows(IllegalArgumentException.class, () -> PinFileParser.read(writePsmGroupFile("negative.pin", "-1")));
+		assertThrows(IllegalArgumentException.class, () -> PinFileParser.read(writePsmGroupFile("nan.pin", "NaN")));
+		assertThrows(IllegalArgumentException.class, () -> PinFileParser.read(writePsmGroupFile("inf.pin", "Infinity")));
 	}
 
-	private Path writeScanRankFile(String name, String scanRankValue) throws IOException {
+	private Path writePsmGroupFile(String name, String psmGroupValue) throws IOException {
 		Path file = tmp.resolve(name);
 		Files.writeString(file, String.join("\n",
-			"SpecId\tLabel\tScanNr\tscan_rank\tExpMass\tfeatA\tPeptide\tProteins",
-			"a\t1\t10\t" + scanRankValue + "\t100.0\t1.0\tPEP\tP1",
+			"SpecId\tLabel\tScanNr\tpsm_group\tExpMass\tfeatA\tPeptide\tProteins",
+			"a\t1\t10\t" + psmGroupValue + "\t100.0\t1.0\tPEP\tP1",
 			"b\t-1\t11\t1\t101.0\t2.0\tPEQ\tP2"
 		));
 		return file;

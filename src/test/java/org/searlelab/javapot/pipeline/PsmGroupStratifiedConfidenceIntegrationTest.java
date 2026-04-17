@@ -19,57 +19,57 @@ import org.searlelab.javapot.io.ModelIO;
 import org.searlelab.javapot.model.LinearSvmModel;
 import org.searlelab.javapot.model.PercolatorFoldModel;
 
-class ScanRankStratifiedConfidenceIntegrationTest {
+class PsmGroupStratifiedConfidenceIntegrationTest {
 	@TempDir
 	Path tempDir;
 
 	@Test
-	void stratifiesTdcPsmConfidenceByScanRankWithoutChangingPeptideOutputs() throws Exception {
+	void stratifiesTdcPsmConfidenceByPsmGroupWithoutChangingPeptideOutputs() throws Exception {
 		Path baselinePin = tempDir.resolve("baseline/input.pin");
 		Path allOnesPin = tempDir.resolve("all_ones/input.pin");
-		Path stratifiedPin = tempDir.resolve("stratified/input.pin");
-		Path modelFile = tempDir.resolve("scan_rank.model.tsv");
+		Path groupedPin = tempDir.resolve("grouped/input.pin");
+		Path modelFile = tempDir.resolve("psm_group.model.tsv");
 		Files.createDirectories(baselinePin.getParent());
 		Files.createDirectories(allOnesPin.getParent());
-		Files.createDirectories(stratifiedPin.getParent());
+		Files.createDirectories(groupedPin.getParent());
 		writePin(baselinePin, false, false);
 		writePin(allOnesPin, true, true);
-		writePin(stratifiedPin, true, false);
+		writePin(groupedPin, true, false);
 		writeModelFile(modelFile);
 
 		JavaPotRunResult baseline = runPin(baselinePin, tempDir.resolve("baseline_out"), modelFile);
 		JavaPotRunResult allOnes = runPin(allOnesPin, tempDir.resolve("all_ones_out"), modelFile);
-		JavaPotRunResult stratified = runPin(stratifiedPin, tempDir.resolve("stratified_out"), modelFile);
+		JavaPotRunResult grouped = runPin(groupedPin, tempDir.resolve("grouped_out"), modelFile);
 
 		Path baselinePsm = tempDir.resolve("baseline_out/input.psms.tsv");
 		Path baselinePeptide = tempDir.resolve("baseline_out/input.peptides.tsv");
 		Path allOnesPsm = tempDir.resolve("all_ones_out/input.psms.tsv");
 		Path allOnesPeptide = tempDir.resolve("all_ones_out/input.peptides.tsv");
-		Path stratifiedPsm = tempDir.resolve("stratified_out/input.psms.tsv");
-		Path stratifiedPeptide = tempDir.resolve("stratified_out/input.peptides.tsv");
+		Path groupedPsm = tempDir.resolve("grouped_out/input.psms.tsv");
+		Path groupedPeptide = tempDir.resolve("grouped_out/input.peptides.tsv");
 
-		assertEquals(-1L, Files.mismatch(baselinePsm, allOnesPsm), "scan_rank=1 should not change PSM output");
-		assertEquals(-1L, Files.mismatch(baselinePeptide, allOnesPeptide), "scan_rank=1 should not change peptide output");
-		assertEquals(-1L, Files.mismatch(baselinePeptide, stratifiedPeptide), "scan_rank should not change peptide output");
-		assertNotEquals(-1L, Files.mismatch(baselinePsm, stratifiedPsm), "Stratified scan_rank should change PSM output");
+		assertEquals(-1L, Files.mismatch(baselinePsm, allOnesPsm), "Single-group psm_group should not change PSM output");
+		assertEquals(-1L, Files.mismatch(baselinePeptide, allOnesPeptide), "Single-group psm_group should not change peptide output");
+		assertEquals(-1L, Files.mismatch(baselinePeptide, groupedPeptide), "psm_group should not change peptide output");
+		assertNotEquals(-1L, Files.mismatch(baselinePsm, groupedPsm), "Grouped psm_group should change PSM output");
 
 		Map<String, Double> baselinePsmQ = readQValues(baselinePsm);
-		Map<String, Double> stratifiedPsmQ = readQValues(stratifiedPsm);
+		Map<String, Double> groupedPsmQ = readQValues(groupedPsm);
 		assertEquals(0.75, baselinePsmQ.get("s102_r1"), 1e-12);
 		assertEquals(0.75, baselinePsmQ.get("s103_r2"), 1e-12);
 		assertEquals(0.75, baselinePsmQ.get("s104_r2"), 1e-12);
 		assertEquals(0.75, baselinePsmQ.get("s105_r2"), 1e-12);
-		assertEquals(1.0, stratifiedPsmQ.get("s102_r1"), 1e-12);
-		assertEquals(1.0 / 3.0, stratifiedPsmQ.get("s103_r2"), 1e-12);
-		assertEquals(1.0 / 3.0, stratifiedPsmQ.get("s104_r2"), 1e-12);
-		assertEquals(1.0 / 3.0, stratifiedPsmQ.get("s105_r2"), 1e-12);
+		assertEquals(1.0, groupedPsmQ.get("s102_r1"), 1e-12);
+		assertEquals(0.5, groupedPsmQ.get("s103_r2"), 1e-12);
+		assertEquals(0.5, groupedPsmQ.get("s104_r2"), 1e-12);
+		assertEquals(1.0, groupedPsmQ.get("s105_r2"), 1e-12);
 
 		assertEquals(4, countTargetsAtThreshold(baseline.psms(), 0.75), "Flat baseline should retain all target pools at q<=0.75");
-		assertEquals(4, countTargetsAtThreshold(allOnes.psms(), 0.75), "scan_rank=1 should match baseline detections");
-		assertEquals(3, countTargetsAtThreshold(stratified.psms(), 0.5), "Stratified scan_rank should accept only rank>=2 targets at q<=0.5");
+		assertEquals(4, countTargetsAtThreshold(allOnes.psms(), 0.75), "Single-group psm_group should match baseline detections");
+		assertEquals(2, countTargetsAtThreshold(grouped.psms(), 0.5), "Grouped psm_group should accept only the group-2 targets at q<=0.5");
 		assertEquals(0, countTargetsAtThreshold(baseline.psms(), 0.5), "Flat baseline should reject all targets at q<=0.5");
 
-		assertEquals(countTargetsAtThreshold(baseline.peptides(), 0.5), countTargetsAtThreshold(stratified.peptides(), 0.5));
+		assertEquals(countTargetsAtThreshold(baseline.peptides(), 0.5), countTargetsAtThreshold(grouped.peptides(), 0.5));
 		assertEquals(countTargetsAtThreshold(baseline.peptides(), 0.75), countTargetsAtThreshold(allOnes.peptides(), 0.75));
 	}
 
@@ -141,28 +141,28 @@ class ScanRankStratifiedConfidenceIntegrationTest {
 		ModelIO.saveModels(java.util.List.of(foldOne, foldTwo, foldThree), modelFile);
 	}
 
-	private static void writePin(Path file, boolean includeScanRank, boolean allOnesScanRank) throws IOException {
+	private static void writePin(Path file, boolean includePsmGroup, boolean allOnesPsmGroup) throws IOException {
 		StringBuilder sb = new StringBuilder();
 		sb.append("SpecId\tLabel\tScanNr\t");
-		if (includeScanRank) {
-			sb.append("scan_rank\t");
+		if (includePsmGroup) {
+			sb.append("psm_group\t");
 		}
 		sb.append("ExpMass\tfeatA\tPeptide\tProteins\n");
-		appendPair(sb, includeScanRank, allOnesScanRank, "s100_r1", -1, 100, 500.0, 80.0, "DECOY_A", "D1", "s100_r2", 1, 2, 1.0, "PEP_A_LOW", "P1");
-		appendPair(sb, includeScanRank, allOnesScanRank, "s101_r1", -1, 101, 501.0, 70.0, "DECOY_B", "D2", "s101_r2", 1, 2, 1.0, "PEP_B_LOW", "P2");
-		appendPair(sb, includeScanRank, allOnesScanRank, "s102_r1", 1, 102, 502.0, 60.0, "PEP_C", "P3", "s102_r2", -1, 2, 1.0, "DECOY_C_LOW", "D3");
-		appendPair(sb, includeScanRank, allOnesScanRank, "s103_r1", -1, 103, 503.0, 1.0, "DECOY_D_LOW", "D4", "s103_r2", 1, 2, 50.0, "PEP_D", "P4");
-		appendPair(sb, includeScanRank, allOnesScanRank, "s104_r1", -1, 104, 504.0, 1.0, "DECOY_E_LOW", "D5", "s104_r2", 1, 2, 40.0, "PEP_E", "P5");
-		appendPair(sb, includeScanRank, allOnesScanRank, "s105_r1", -1, 105, 505.0, 1.0, "DECOY_F_LOW", "D6", "s105_r2", 1, 2, 30.0, "PEP_F", "P6");
-		appendPair(sb, includeScanRank, allOnesScanRank, "s106_r1", 1, 106, 506.0, 1.0, "PEP_G_LOW", "P7", "s106_r2", -1, 2, 20.0, "DECOY_G", "D7");
-		appendPair(sb, includeScanRank, allOnesScanRank, "s107_r1", 1, 107, 507.0, 1.0, "PEP_H_LOW", "P8", "s107_r2", -1, 2, 10.0, "DECOY_H", "D8");
+		appendPair(sb, includePsmGroup, allOnesPsmGroup, "s100_r1", -1, 100, 500.0, 80.0, "DECOY_A", "D1", "s100_r2", 1, 1.0, 1.0, "PEP_A_LOW", "P1");
+		appendPair(sb, includePsmGroup, allOnesPsmGroup, "s101_r1", -1, 101, 501.0, 70.0, "DECOY_B", "D2", "s101_r2", 1, 1.0, 1.0, "PEP_B_LOW", "P2");
+		appendPair(sb, includePsmGroup, allOnesPsmGroup, "s102_r1", 1, 102, 502.0, 60.0, "PEP_C", "P3", "s102_r2", -1, 1.0, 1.0, "DECOY_C_LOW", "D3");
+		appendPair(sb, includePsmGroup, allOnesPsmGroup, "s103_r1", -1, 103, 503.0, 1.0, "DECOY_D_LOW", "D4", "s103_r2", 1, 2.4, 50.0, "PEP_D", "P4");
+		appendPair(sb, includePsmGroup, allOnesPsmGroup, "s104_r1", -1, 104, 504.0, 1.0, "DECOY_E_LOW", "D5", "s104_r2", 1, 2.4, 40.0, "PEP_E", "P5");
+		appendPair(sb, includePsmGroup, allOnesPsmGroup, "s105_r1", -1, 105, 505.0, 1.0, "DECOY_F_LOW", "D6", "s105_r2", 1, 4.6, 30.0, "PEP_F", "P6");
+		appendPair(sb, includePsmGroup, allOnesPsmGroup, "s106_r1", 1, 106, 506.0, 1.0, "PEP_G_LOW", "P7", "s106_r2", -1, 1.0, 20.0, "DECOY_G", "D7");
+		appendPair(sb, includePsmGroup, allOnesPsmGroup, "s107_r1", 1, 107, 507.0, 1.0, "PEP_H_LOW", "P8", "s107_r2", -1, 2.4, 10.0, "DECOY_H", "D8");
 		Files.writeString(file, sb.toString());
 	}
 
 	private static void appendPair(
 		StringBuilder sb,
-		boolean includeScanRank,
-		boolean allOnesScanRank,
+		boolean includePsmGroup,
+		boolean allOnesPsmGroup,
 		String specIdA,
 		int labelA,
 		int scan,
@@ -172,23 +172,23 @@ class ScanRankStratifiedConfidenceIntegrationTest {
 		String proteinA,
 		String specIdB,
 		int labelB,
-		int scanRankB,
+		double psmGroupB,
 		double featBValue,
 		String peptideB,
 		String proteinB
 	) {
-		appendRow(sb, includeScanRank, allOnesScanRank, specIdA, labelA, scan, 1, expMass, featAValue, peptideA, proteinA);
-		appendRow(sb, includeScanRank, allOnesScanRank, specIdB, labelB, scan, scanRankB, expMass, featBValue, peptideB, proteinB);
+		appendRow(sb, includePsmGroup, allOnesPsmGroup, specIdA, labelA, scan, 1.0, expMass, featAValue, peptideA, proteinA);
+		appendRow(sb, includePsmGroup, allOnesPsmGroup, specIdB, labelB, scan, psmGroupB, expMass, featBValue, peptideB, proteinB);
 	}
 
 	private static void appendRow(
 		StringBuilder sb,
-		boolean includeScanRank,
-		boolean allOnesScanRank,
+		boolean includePsmGroup,
+		boolean allOnesPsmGroup,
 		String specId,
 		int label,
 		int scan,
-		int scanRank,
+		double psmGroup,
 		double expMass,
 		double featValue,
 		String peptide,
@@ -197,8 +197,8 @@ class ScanRankStratifiedConfidenceIntegrationTest {
 		sb.append(specId).append('\t')
 			.append(label).append('\t')
 			.append(scan).append('\t');
-		if (includeScanRank) {
-			sb.append(allOnesScanRank ? 1 : scanRank).append('\t');
+		if (includePsmGroup) {
+			sb.append(allOnesPsmGroup ? 1.0 : psmGroup).append('\t');
 		}
 		sb.append(expMass).append('\t')
 			.append(featValue).append('\t')

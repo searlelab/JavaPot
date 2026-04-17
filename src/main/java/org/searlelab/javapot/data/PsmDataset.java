@@ -2,8 +2,10 @@ package org.searlelab.javapot.data;
 
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * PsmDataset is the in-memory representation of a parsed PIN table.
@@ -17,8 +19,8 @@ public final class PsmDataset {
 	private final double[][] features;
 	private final String[] featureNames;
 	private final int[] spectrumColIndices;
-	private final int[] scanRanks;
-	private final boolean hasNonTrivialScanRank;
+	private final int[] psmGroups;
+	private final boolean hasNonTrivialPsmGroup;
 	private final Map<String, Integer> featureIndex;
 	private final Map<String, Integer> columnIndex;
 
@@ -33,8 +35,8 @@ public final class PsmDataset {
 		this.targets = parseTargets();
 		this.featureNames = columnGroups.featureColumns().toArray(String[]::new);
 		this.spectrumColIndices = parseSpectrumColIndices();
-		this.scanRanks = parseScanRanks();
-		this.hasNonTrivialScanRank = detectNonTrivialScanRank(scanRanks);
+		this.psmGroups = parsePsmGroups();
+		this.hasNonTrivialPsmGroup = detectNonTrivialPsmGroup(psmGroups);
 		this.featureIndex = buildIndex(columnGroups.featureColumns());
 		this.features = parseFeatures();
 	}
@@ -70,17 +72,17 @@ public final class PsmDataset {
 		return out;
 	}
 
-	private int[] parseScanRanks() {
-		String scanRankColumn = columnGroups.optionalColumns().scanRank();
-		if (scanRankColumn == null) {
+	private int[] parsePsmGroups() {
+		String psmGroupColumn = columnGroups.optionalColumns().psmGroup();
+		if (psmGroupColumn == null) {
 			return null;
 		}
-		int idx = colIndex(scanRankColumn);
+		int idx = colIndex(psmGroupColumn);
 		int[] out = new int[rows.length];
 		for (int i = 0; i < rows.length; i++) {
 			String value = rows[i][idx];
 			if (value == null || value.isBlank()) {
-				throw new IllegalArgumentException("Missing value in scan_rank at row " + i);
+				throw new IllegalArgumentException("Missing value in psm_group at row " + i);
 			}
 			try {
 				double parsed = Double.parseDouble(value);
@@ -89,21 +91,23 @@ public final class PsmDataset {
 				}
 				out[i] = (int) Math.round(parsed);
 			} catch (NumberFormatException e) {
-				throw new IllegalArgumentException("Invalid scan_rank '" + value + "' at row " + i, e);
+				throw new IllegalArgumentException("Invalid psm_group '" + value + "' at row " + i, e);
 			}
 			if (out[i] < 1) {
-				throw new IllegalArgumentException("scan_rank must be >= 1 at row " + i + ": " + out[i]);
+				throw new IllegalArgumentException("psm_group must be >= 1 at row " + i + ": " + out[i]);
 			}
 		}
 		return out;
 	}
 
-	private static boolean detectNonTrivialScanRank(int[] scanRanks) {
-		if (scanRanks == null) {
+	private static boolean detectNonTrivialPsmGroup(int[] psmGroups) {
+		if (psmGroups == null) {
 			return false;
 		}
-		for (int scanRank : scanRanks) {
-			if (scanRank > 1) {
+		Set<Integer> distinct = new HashSet<>();
+		for (int psmGroup : psmGroups) {
+			distinct.add(psmGroup);
+			if (distinct.size() > 1) {
 				return true;
 			}
 		}
@@ -211,27 +215,27 @@ public final class PsmDataset {
 	}
 
 	/**
-	 * Returns whether the dataset exposes an optional scan_rank column.
+	 * Returns whether the dataset exposes an optional psm_group column.
 	 */
-	public boolean hasScanRankColumn() {
-		return scanRanks != null;
+	public boolean hasPsmGroupColumn() {
+		return psmGroups != null;
 	}
 
 	/**
-	 * Returns whether at least one row has scan_rank > 1.
+	 * Returns whether at least two distinct psm_group values are present.
 	 */
-	public boolean hasNonTrivialScanRank() {
-		return hasNonTrivialScanRank;
+	public boolean hasNonTrivialPsmGroup() {
+		return hasNonTrivialPsmGroup;
 	}
 
 	/**
-	 * Returns the raw scan_rank value for a row, or 1 if the optional column is absent.
+	 * Returns the rounded psm_group value for a row, or 1 if the optional column is absent.
 	 */
-	public int scanRankAt(int idx) {
-		if (scanRanks == null) {
+	public int psmGroupAt(int idx) {
+		if (psmGroups == null) {
 			return 1;
 		}
-		return scanRanks[idx];
+		return psmGroups[idx];
 	}
 
 	/**

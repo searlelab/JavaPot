@@ -8,7 +8,7 @@ public record OptionalColumns(
 	String id,
 	String filename,
 	String scan,
-	String scanRank,
+	String psmGroup,
 	String calcmass,
 	String expmass,
 	String rt,

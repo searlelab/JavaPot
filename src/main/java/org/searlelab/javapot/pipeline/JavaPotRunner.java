@@ -7,7 +7,9 @@ import java.util.Arrays;
 import java.util.Comparator;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
+import java.util.TreeMap;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
@@ -45,8 +47,6 @@ public final class JavaPotRunner {
 	private static final String MOKAPOT_SCORE = "mokapot_score";
 	private static final String MOKAPOT_QVALUE = "mokapot_qvalue";
 	private static final String MOKAPOT_PEP = "mokapot_posterior_error_prob";
-	private static final int SCAN_RANK_TOP_BUCKET = 0;
-	private static final int SCAN_RANK_CHIMERIC_BUCKET = 1;
 	private static final List<String> PERCOLATOR_HEADER = List.of(
 		"PSMId",
 		"score",
@@ -177,39 +177,40 @@ public final class JavaPotRunner {
 	private static void printDatasetInfo(PsmDataset dataset, JavaPotOptions config) {
 		boolean[] targets = dataset.rawTargets();
 		int targetCount = 0;
-		int rankOneTargets = 0;
-		int rankOneDecoys = 0;
-		int rankChimericTargets = 0;
-		int rankChimericDecoys = 0;
 		for (boolean target : targets) {
 			if (target) {
 				targetCount++;
 			}
 		}
-		if (dataset.hasScanRankColumn()) {
+		Map<Integer, GroupCounts> groupCounts = null;
+		if (dataset.hasPsmGroupColumn()) {
+			groupCounts = new TreeMap<>();
 			for (int i = 0; i < dataset.size(); i++) {
 				boolean target = dataset.targetAt(i);
-				boolean rankOne = dataset.scanRankAt(i) == 1;
-				if (rankOne) {
-					if (target) {
-						rankOneTargets++;
-					} else {
-						rankOneDecoys++;
-					}
+				int groupId = dataset.psmGroupAt(i);
+				GroupCounts counts = groupCounts.get(groupId);
+				if (counts == null) {
+					counts = new GroupCounts();
+					groupCounts.put(groupId, counts);
+				}
+				if (target) {
+					counts.targets++;
 				} else {
-					if (target) {
-						rankChimericTargets++;
-					} else {
-						rankChimericDecoys++;
-					}
+					counts.decoys++;
 				}
 			}
 		}
 		log(config, "Found " + dataset.size() + " total PSMs");
 		log(config, "  - " + targetCount + " target PSMs and " + (dataset.size() - targetCount) + " decoy PSMs detected.");
-		if (dataset.hasScanRankColumn()) {
-			log(config, "  - scan_rank==1: " + rankOneTargets + " target PSMs and " + rankOneDecoys + " decoy PSMs.");
-			log(config, "  - scan_rank>=2: " + rankChimericTargets + " target PSMs and " + rankChimericDecoys + " decoy PSMs.");
+		if (groupCounts != null) {
+			for (Map.Entry<Integer, GroupCounts> entry : groupCounts.entrySet()) {
+				log(
+					config,
+					"  - psm_group=" + entry.getKey() + ": " +
+						entry.getValue().targets + " target PSMs and " +
+						entry.getValue().decoys + " decoy PSMs."
+				);
+			}
 		}
 		log(config, "Using " + dataset.featureCount() + " features: " + String.join(",", dataset.featureNames()));
 	}
@@ -789,55 +790,68 @@ public final class JavaPotRunner {
 		ConfidenceMode confidenceMode,
 		long seed
 	) {
-		if (confidenceMode == ConfidenceMode.TDC && dataset.hasNonTrivialScanRank()) {
-			int[] rankBuckets = gatherScanRankBuckets(dataset, psmBest);
-			if (hasChimericBucket(rankBuckets)) {
-				return estimateStratifiedTdcPsmConfidence(scores, targets, rankBuckets);
+		if (confidenceMode == ConfidenceMode.TDC && dataset.hasNonTrivialPsmGroup()) {
+			int[] psmGroups = gatherPsmGroups(dataset, psmBest);
+			if (hasMultiplePsmGroups(psmGroups)) {
+				return estimateGroupedTdcPsmConfidence(scores, targets, psmGroups);
 			}
 		}
 		return estimateConfidence(scores, targets, confidenceMode, seed);
 	}
 
-	private static int[] gatherScanRankBuckets(PsmDataset dataset, int[] idx) {
+	private static int[] gatherPsmGroups(PsmDataset dataset, int[] idx) {
 		int[] out = new int[idx.length];
 		for (int i = 0; i < idx.length; i++) {
-			out[i] = dataset.scanRankAt(idx[i]) == 1 ? SCAN_RANK_TOP_BUCKET : SCAN_RANK_CHIMERIC_BUCKET;
+			out[i] = dataset.psmGroupAt(idx[i]);
 		}
 		return out;
 	}
 
-	private static boolean hasChimericBucket(int[] rankBuckets) {
-		for (int rankBucket : rankBuckets) {
-			if (rankBucket == SCAN_RANK_CHIMERIC_BUCKET) {
+	private static boolean hasMultiplePsmGroups(int[] psmGroups) {
+		if (psmGroups.length == 0) {
+			return false;
+		}
+		int first = psmGroups[0];
+		for (int psmGroup : psmGroups) {
+			if (psmGroup != first) {
 				return true;
 			}
 		}
 		return false;
 	}
 
-	private static ConfidenceResult estimateStratifiedTdcPsmConfidence(
+	private static ConfidenceResult estimateGroupedTdcPsmConfidence(
 		double[] scores,
 		boolean[] targets,
-		int[] rankBuckets
+		int[] psmGroups
 	) {
 		double[] qValues = new double[scores.length];
 		double[] pepValues = new double[scores.length];
-		estimateTdcConfidenceSubset(scores, targets, rankBuckets, SCAN_RANK_TOP_BUCKET, qValues, pepValues);
-		estimateTdcConfidenceSubset(scores, targets, rankBuckets, SCAN_RANK_CHIMERIC_BUCKET, qValues, pepValues);
+		for (int groupId : distinctGroupsInOrder(psmGroups)) {
+			estimateTdcConfidenceSubset(scores, targets, psmGroups, groupId, qValues, pepValues);
+		}
 		return new ConfidenceResult(qValues, pepValues, null);
+	}
+
+	private static List<Integer> distinctGroupsInOrder(int[] psmGroups) {
+		Set<Integer> distinct = new java.util.TreeSet<>();
+		for (int psmGroup : psmGroups) {
+			distinct.add(psmGroup);
+		}
+		return new ArrayList<>(distinct);
 	}
 
 	private static void estimateTdcConfidenceSubset(
 		double[] scores,
 		boolean[] targets,
-		int[] rankBuckets,
-		int bucket,
+		int[] psmGroups,
+		int groupId,
 		double[] allQValues,
 		double[] allPepValues
 	) {
 		int subsetSize = 0;
-		for (int rankBucket : rankBuckets) {
-			if (rankBucket == bucket) {
+		for (int psmGroup : psmGroups) {
+			if (psmGroup == groupId) {
 				subsetSize++;
 			}
 		}
@@ -848,8 +862,8 @@ public final class JavaPotRunner {
 		double[] subsetScores = new double[subsetSize];
 		boolean[] subsetTargets = new boolean[subsetSize];
 		int pos = 0;
-		for (int i = 0; i < rankBuckets.length; i++) {
-			if (rankBuckets[i] != bucket) {
+		for (int i = 0; i < psmGroups.length; i++) {
+			if (psmGroups[i] != groupId) {
 				continue;
 			}
 			subsetPositions[pos] = i;
@@ -1139,5 +1153,10 @@ public final class JavaPotRunner {
 	}
 
 	private record ConfidenceResult(double[] qValues, double[] pepValues, Double pi0) {
+	}
+
+	private static final class GroupCounts {
+		private int targets;
+		private int decoys;
 	}
 }

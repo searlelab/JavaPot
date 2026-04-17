@@ -28,7 +28,7 @@ class DataModelsTest {
 	void inferFromColnamesBuildsExpectedGroups() {
 		List<String> cols = List.of(
 			"SpecId", "Label", "ScanNr", "FileName", "ExpMass", "CalcMass", "ret_time",
-			"scan_rank", "charge_column", "charge_2", "Peptide", "Proteins", "modifiedPeptide",
+			"psm_group", "charge_column", "charge_2", "Peptide", "Proteins", "modifiedPeptide",
 			"Precursor", "PeptideGroup", "feat1"
 		);
 
@@ -39,12 +39,12 @@ class DataModelsTest {
 		assertEquals(List.of("FileName", "ScanNr", "ret_time", "ExpMass"), groups.spectrumColumns());
 		assertEquals(List.of("modifiedPeptide", "Precursor", "PeptideGroup"), groups.extraConfidenceLevelColumns());
 		assertEquals("SpecId", groups.optionalColumns().id());
-		assertEquals("scan_rank", groups.optionalColumns().scanRank());
+		assertEquals("psm_group", groups.optionalColumns().psmGroup());
 		assertEquals("Proteins", groups.optionalColumns().protein());
 		assertTrue(groups.featureColumns().contains("feat1"));
 		assertTrue(groups.featureColumns().contains("charge_2"));
 		assertFalse(groups.featureColumns().contains("Label"));
-		assertFalse(groups.featureColumns().contains("scan_rank"));
+		assertFalse(groups.featureColumns().contains("psm_group"));
 		assertTrue(groups.toString().contains("targetColumn='Label'"));
 	}
 
@@ -89,7 +89,7 @@ class DataModelsTest {
 
 	@Test
 	void psmDatasetAccessorsAndCopiesBehaveAsExpected() {
-		List<String> headers = List.of("SpecId", "Label", "ScanNr", "scan_rank", "ExpMass", "featA", "featB", "Peptide", "Proteins");
+		List<String> headers = List.of("SpecId", "Label", "ScanNr", "psm_group", "ExpMass", "featA", "featB", "Peptide", "Proteins");
 		String[][] rows = new String[][]{
 			{"id1", "1", "100", "1", "500.0", "10.0", "0.5", "PEP", "P1"},
 			{"id2", "-1", "101", "2", "501.0", "1.0", "2.5", "PEQ", "P2"},
@@ -102,7 +102,7 @@ class DataModelsTest {
 			List.of("ScanNr", "ExpMass"),
 			List.of("featA", "featB"),
 			List.of(),
-			new OptionalColumns("SpecId", null, "ScanNr", "scan_rank", null, "ExpMass", null, null, "Proteins")
+			new OptionalColumns("SpecId", null, "ScanNr", "psm_group", null, "ExpMass", null, null, "Proteins")
 		);
 
 		PsmDataset ds = new PsmDataset(groups, headers, rows);
@@ -119,9 +119,9 @@ class DataModelsTest {
 		assertEquals(headers, ds.headers());
 		assertEquals("id2", ds.rawValueAt(1, ds.colIndex("SpecId")));
 		assertArrayEquals(new int[]{2, 4}, ds.spectrumColIndices());
-		assertTrue(ds.hasScanRankColumn());
-		assertTrue(ds.hasNonTrivialScanRank());
-		assertEquals(3, ds.scanRankAt(2));
+		assertTrue(ds.hasPsmGroupColumn());
+		assertTrue(ds.hasNonTrivialPsmGroup());
+		assertEquals(3, ds.psmGroupAt(2));
 
 		double[][] copied = ds.features();
 		copied[0][0] = -999.0;
@@ -158,8 +158,8 @@ class DataModelsTest {
 	}
 
 	@Test
-	void psmDatasetValidatesAndBucketsScanRank() {
-		List<String> headers = List.of("SpecId", "Label", "ScanNr", "scan_rank", "ExpMass", "featA", "Peptide", "Proteins");
+	void psmDatasetValidatesAndBucketsPsmGroup() {
+		List<String> headers = List.of("SpecId", "Label", "ScanNr", "psm_group", "ExpMass", "featA", "Peptide", "Proteins");
 		ColumnGroups groups = new ColumnGroups(
 			headers,
 			"Label",
@@ -167,7 +167,7 @@ class DataModelsTest {
 			List.of("ScanNr"),
 			List.of("featA"),
 			List.of(),
-			new OptionalColumns("SpecId", null, "ScanNr", "scan_rank", null, "ExpMass", null, null, "Proteins")
+			new OptionalColumns("SpecId", null, "ScanNr", "psm_group", null, "ExpMass", null, null, "Proteins")
 		);
 
 		String[][] validRows = new String[][]{
@@ -175,12 +175,16 @@ class DataModelsTest {
 			{"id2", "-1", "101", "3.6", "501.0", "2.0", "PEQ", "P2"}
 		};
 		PsmDataset valid = new PsmDataset(groups, headers, validRows);
-		assertEquals(1, valid.scanRankAt(0));
-		assertEquals(4, valid.scanRankAt(1));
-		assertTrue(valid.hasNonTrivialScanRank());
+		assertEquals(1, valid.psmGroupAt(0));
+		assertEquals(4, valid.psmGroupAt(1));
+		assertTrue(valid.hasNonTrivialPsmGroup());
 		assertEquals(2, new PsmDataset(groups, headers, new String[][]{
 			{"id3", "1", "102", "1.5", "502.0", "8.0", "PER", "P3"}
-		}).scanRankAt(0));
+		}).psmGroupAt(0));
+		assertFalse(new PsmDataset(groups, headers, new String[][]{
+			{"id4", "1", "103", "5.0", "503.0", "7.0", "PES", "P4"},
+			{"id5", "-1", "104", "5.4", "504.0", "6.0", "PET", "P5"}
+		}).hasNonTrivialPsmGroup());
 
 		assertThrows(IllegalArgumentException.class, () -> new PsmDataset(groups, headers, new String[][]{
 			{"id1", "1", "100", "", "500.0", "10.0", "PEP", "P1"}
@@ -192,7 +196,19 @@ class DataModelsTest {
 			{"id1", "1", "100", "0", "500.0", "10.0", "PEP", "P1"}
 		}));
 		assertThrows(IllegalArgumentException.class, () -> new PsmDataset(groups, headers, new String[][]{
+			{"id1", "1", "100", "0.4", "500.0", "10.0", "PEP", "P1"}
+		}));
+		assertThrows(IllegalArgumentException.class, () -> new PsmDataset(groups, headers, new String[][]{
 			{"id1", "1", "100", "-2", "500.0", "10.0", "PEP", "P1"}
+		}));
+		assertThrows(IllegalArgumentException.class, () -> new PsmDataset(groups, headers, new String[][]{
+			{"id1", "1", "100", "-0.6", "500.0", "10.0", "PEP", "P1"}
+		}));
+		assertThrows(IllegalArgumentException.class, () -> new PsmDataset(groups, headers, new String[][]{
+			{"id1", "1", "100", "NaN", "500.0", "10.0", "PEP", "P1"}
+		}));
+		assertThrows(IllegalArgumentException.class, () -> new PsmDataset(groups, headers, new String[][]{
+			{"id1", "1", "100", "Infinity", "500.0", "10.0", "PEP", "P1"}
 		}));
 	}
 
