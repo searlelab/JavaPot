@@ -107,7 +107,7 @@ class BestFeatureFinderAndModelTypesTest {
 			List.of("ScanNr", "ExpMass"),
 			List.of("featGood", "featFlip"),
 			List.of(),
-			new OptionalColumns("SpecId", null, "ScanNr", null, "ExpMass", null, null, "Proteins")
+			new OptionalColumns("SpecId", null, "ScanNr", null, null, "ExpMass", null, null, "Proteins")
 		);
 		return new PsmDataset(groups, headers, rows);
 	}

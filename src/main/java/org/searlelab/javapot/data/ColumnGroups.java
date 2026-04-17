@@ -72,6 +72,7 @@ public final class ColumnGroups {
 			validateOptional(optionalColumns.id());
 			validateOptional(optionalColumns.filename());
 			validateOptional(optionalColumns.scan());
+			validateOptional(optionalColumns.scanRank());
 			validateOptional(optionalColumns.calcmass());
 			validateOptional(optionalColumns.expmass());
 			validateOptional(optionalColumns.rt());
@@ -119,6 +120,7 @@ public final class ColumnGroups {
 		nonfeat.addAll(extra);
 
 		String filename = findOptionalColumn(null, columns, "filename");
+		String scanRank = findOptionalColumn(null, columns, "scan_rank");
 		String calcmass = findOptionalColumn(null, columns, "calcmass");
 		String expmass = findOptionalColumn(null, columns, "expmass");
 		String retTime = findOptionalColumn(null, columns, "ret_time");
@@ -154,6 +156,9 @@ public final class ColumnGroups {
 		if (filename != null) {
 			nonfeat.add(filename);
 		}
+		if (scanRank != null) {
+			nonfeat.add(scanRank);
+		}
 		if (calcmass != null) {
 			nonfeat.add(calcmass);
 		}
@@ -176,6 +181,7 @@ public final class ColumnGroups {
 			specid,
 			filename,
 			scan,
+			scanRank,
 			calcmass,
 			expmass,
 			retTime,

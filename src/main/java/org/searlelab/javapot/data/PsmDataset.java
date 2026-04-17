@@ -17,6 +17,8 @@ public final class PsmDataset {
 	private final double[][] features;
 	private final String[] featureNames;
 	private final int[] spectrumColIndices;
+	private final int[] scanRanks;
+	private final boolean hasNonTrivialScanRank;
 	private final Map<String, Integer> featureIndex;
 	private final Map<String, Integer> columnIndex;
 
@@ -31,6 +33,8 @@ public final class PsmDataset {
 		this.targets = parseTargets();
 		this.featureNames = columnGroups.featureColumns().toArray(String[]::new);
 		this.spectrumColIndices = parseSpectrumColIndices();
+		this.scanRanks = parseScanRanks();
+		this.hasNonTrivialScanRank = detectNonTrivialScanRank(scanRanks);
 		this.featureIndex = buildIndex(columnGroups.featureColumns());
 		this.features = parseFeatures();
 	}
@@ -64,6 +68,46 @@ public final class PsmDataset {
 			}
 		}
 		return out;
+	}
+
+	private int[] parseScanRanks() {
+		String scanRankColumn = columnGroups.optionalColumns().scanRank();
+		if (scanRankColumn == null) {
+			return null;
+		}
+		int idx = colIndex(scanRankColumn);
+		int[] out = new int[rows.length];
+		for (int i = 0; i < rows.length; i++) {
+			String value = rows[i][idx];
+			if (value == null || value.isBlank()) {
+				throw new IllegalArgumentException("Missing value in scan_rank at row " + i);
+			}
+			try {
+				double parsed = Double.parseDouble(value);
+				if (!Double.isFinite(parsed)) {
+					throw new NumberFormatException("Non-finite value");
+				}
+				out[i] = (int) Math.round(parsed);
+			} catch (NumberFormatException e) {
+				throw new IllegalArgumentException("Invalid scan_rank '" + value + "' at row " + i, e);
+			}
+			if (out[i] < 1) {
+				throw new IllegalArgumentException("scan_rank must be >= 1 at row " + i + ": " + out[i]);
+			}
+		}
+		return out;
+	}
+
+	private static boolean detectNonTrivialScanRank(int[] scanRanks) {
+		if (scanRanks == null) {
+			return false;
+		}
+		for (int scanRank : scanRanks) {
+			if (scanRank > 1) {
+				return true;
+			}
+		}
+		return false;
 	}
 
 	/**
@@ -164,6 +208,30 @@ public final class PsmDataset {
 			out[i] = rows[idx][spectrumColIndices[i]];
 		}
 		return out;
+	}
+
+	/**
+	 * Returns whether the dataset exposes an optional scan_rank column.
+	 */
+	public boolean hasScanRankColumn() {
+		return scanRanks != null;
+	}
+
+	/**
+	 * Returns whether at least one row has scan_rank > 1.
+	 */
+	public boolean hasNonTrivialScanRank() {
+		return hasNonTrivialScanRank;
+	}
+
+	/**
+	 * Returns the raw scan_rank value for a row, or 1 if the optional column is absent.
+	 */
+	public int scanRankAt(int idx) {
+		if (scanRanks == null) {
+			return 1;
+		}
+		return scanRanks[idx];
 	}
 
 	/**

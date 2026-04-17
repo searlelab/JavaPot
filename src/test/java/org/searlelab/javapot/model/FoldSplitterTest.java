@@ -33,7 +33,7 @@ class FoldSplitterTest {
 			List.of("ScanNr", "ExpMass"),
 			List.of("feat"),
 			List.of(),
-			new OptionalColumns("SpecId", null, "ScanNr", null, "ExpMass", null, null, "Proteins")
+			new OptionalColumns("SpecId", null, "ScanNr", null, null, "ExpMass", null, null, "Proteins")
 		);
 		PsmDataset ds = new PsmDataset(groups, headers, rows);
 
@@ -73,7 +73,7 @@ class FoldSplitterTest {
 			List.of("Filename", "ScanNr", "ExpMass"),
 			List.of("feat"),
 			List.of(),
-			new OptionalColumns("SpecId", "Filename", "ScanNr", null, "ExpMass", null, null, "Proteins")
+			new OptionalColumns("SpecId", "Filename", "ScanNr", null, null, "ExpMass", null, null, "Proteins")
 		);
 		PsmDataset ds = new PsmDataset(groups, headers, rows);
 
@@ -112,7 +112,7 @@ class FoldSplitterTest {
 			List.of("ScanNr", "ExpMass"),
 			List.of("feat"),
 			List.of(),
-			new OptionalColumns("SpecId", null, "ScanNr", null, "ExpMass", null, null, "Proteins")
+			new OptionalColumns("SpecId", null, "ScanNr", null, null, "ExpMass", null, null, "Proteins")
 		);
 		PsmDataset ds = new PsmDataset(groups, headers, rows);
 

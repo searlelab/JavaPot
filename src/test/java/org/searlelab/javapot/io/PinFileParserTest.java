@@ -74,6 +74,21 @@ class PinFileParserTest {
 	}
 
 	@Test
+	void parsesScanRankAsOptionalMetadata() throws IOException {
+		Path file = tmp.resolve("scan_rank.pin");
+		Files.writeString(file, String.join("\n",
+			"SpecId\tLabel\tScanNr\tscan_rank\tExpMass\tfeatA\tPeptide\tProteins",
+			"a\t1\t10\t1.0\t100.0\t1.0\tPEP\tP1",
+			"b\t-1\t11\t2.6\t101.0\t2.0\tPEQ\tP2"
+		));
+
+		PsmDataset ds = PinFileParser.read(file);
+		assertEquals("scan_rank", ds.columnGroups().optionalColumns().scanRank());
+		assertEquals(1, ds.scanRankAt(0));
+		assertEquals(3, ds.scanRankAt(1));
+	}
+
+	@Test
 	void skipsCommentAndDefaultDirectionLines() throws IOException {
 		Path file = tmp.resolve("comments.pin");
 		Files.writeString(file, String.join("\n",
@@ -138,5 +153,23 @@ class PinFileParserTest {
 			"b\t-1\t11\t501.0\tNaN\t \tPEQ\tP2"
 		));
 		assertThrows(IllegalArgumentException.class, () -> PinFileParser.read(file));
+	}
+
+	@Test
+	void rejectsInvalidScanRankValues() throws IOException {
+		assertThrows(IllegalArgumentException.class, () -> PinFileParser.read(writeScanRankFile("blank.pin", "")));
+		assertThrows(IllegalArgumentException.class, () -> PinFileParser.read(writeScanRankFile("text.pin", "abc")));
+		assertThrows(IllegalArgumentException.class, () -> PinFileParser.read(writeScanRankFile("zero.pin", "0")));
+		assertThrows(IllegalArgumentException.class, () -> PinFileParser.read(writeScanRankFile("negative.pin", "-1")));
+	}
+
+	private Path writeScanRankFile(String name, String scanRankValue) throws IOException {
+		Path file = tmp.resolve(name);
+		Files.writeString(file, String.join("\n",
+			"SpecId\tLabel\tScanNr\tscan_rank\tExpMass\tfeatA\tPeptide\tProteins",
+			"a\t1\t10\t" + scanRankValue + "\t100.0\t1.0\tPEP\tP1",
+			"b\t-1\t11\t1\t101.0\t2.0\tPEQ\tP2"
+		));
+		return file;
 	}
 }
