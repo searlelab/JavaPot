@@ -28,6 +28,7 @@ class JavaPotApiTest {
 			pinFile,
 			0.02,
 			0.03,
+			500000,
 			resultsPeptides,
 			decoyResultsPeptides,
 			saveModelFile,
@@ -65,6 +66,7 @@ class JavaPotApiTest {
 			pinFile,
 			0.5,
 			0.5,
+			500000,
 			targetOut,
 			decoyOut,
 			true

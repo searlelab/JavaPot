@@ -40,6 +40,7 @@ public record JavaPotOptions(
 		Path pinFile,
 		double trainFdr,
 		double testFdr,
+		int subsetMaxTrain,
 		Path resultsPeptides,
 		Path decoyResultsPeptides,
 		Path saveModelFile,
@@ -57,7 +58,7 @@ public record JavaPotOptions(
 			DEFAULT_MAX_ITER,
 			DEFAULT_SEED,
 			null,
-			null,
+			subsetMaxTrain,
 			saveModelFile,
 			false,
 			false,
@@ -76,11 +77,12 @@ public record JavaPotOptions(
 		Path pinFile,
 		double trainFdr,
 		double testFdr,
+		int subsetMaxTrain,
 		Path resultsPeptides,
 		Path decoyResultsPeptides,
 		boolean mixmax
 	) {
-		this(pinFile, trainFdr, testFdr, resultsPeptides, decoyResultsPeptides, null, null, mixmax);
+		this(pinFile, trainFdr, testFdr, subsetMaxTrain, resultsPeptides, decoyResultsPeptides, null, null, mixmax);
 	}
 
 	private static Path defaultOutputDir(Path pinFile) {
