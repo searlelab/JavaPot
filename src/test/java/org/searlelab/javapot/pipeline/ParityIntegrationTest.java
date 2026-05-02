@@ -4,8 +4,11 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.io.BufferedReader;
 import java.io.IOException;
+import java.io.InputStreamReader;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.HashSet;
 import java.util.Set;
 
@@ -15,8 +18,8 @@ import org.junit.jupiter.api.io.TempDir;
 import org.searlelab.javapot.cli.JavaPotCli;
 
 class ParityIntegrationTest {
-	private static final Path MOKAPOT_SOURCE = Path.of("/Users/searle.brian/Documents/projects/mokapot");
-	private static final Path PIN_FILE = Path.of("/Users/searle.brian/Documents/projects/mokapot/data/10k_psms_test.pin");
+	private static final Path MOKAPOT_SOURCE = Paths.get("/Users/searle.brian/Documents/projects/mokapot");
+	private static final Path PIN_FILE = Paths.get("/Users/searle.brian/Documents/projects/mokapot/data/10k_psms_test.pin");
 
 	@TempDir
 	Path tempDir;
@@ -133,7 +136,7 @@ class ParityIntegrationTest {
 		pb.directory(cwd.toFile());
 		pb.redirectErrorStream(true);
 		Process process = pb.start();
-		try (BufferedReader reader = process.inputReader()) {
+		try (BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream(), StandardCharsets.UTF_8))) {
 			while (reader.readLine() != null) {
 				// discard output in test, only exit code matters
 			}
@@ -234,6 +237,21 @@ class ParityIntegrationTest {
 		return shared / (double) reference.size();
 	}
 
-	private record Counts(int psmAtFdr, int peptideAtFdr) {
+	private static final class Counts {
+		private final int psmAtFdr;
+		private final int peptideAtFdr;
+
+		private Counts(int psmAtFdr, int peptideAtFdr) {
+			this.psmAtFdr = psmAtFdr;
+			this.peptideAtFdr = peptideAtFdr;
+		}
+
+		private int psmAtFdr() {
+			return psmAtFdr;
+		}
+
+		private int peptideAtFdr() {
+			return peptideAtFdr;
+		}
 	}
 }

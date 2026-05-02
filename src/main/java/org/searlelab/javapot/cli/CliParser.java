@@ -1,6 +1,7 @@
 package org.searlelab.javapot.cli;
 
 import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -46,89 +47,92 @@ public final class CliParser {
 		int folds = JavaPotOptions.DEFAULT_FOLDS;
 		int maxRetries = JavaPotOptions.DEFAULT_MAX_RETRIES;
 		boolean mixmax = false;
-		List<String> positional = new ArrayList<>();
+		List<String> positional = new ArrayList<String>();
 
 		for (int i = 0; i < args.length; i++) {
 			String arg = args[i];
 			switch (arg) {
-				case "-h", "--help" -> {
+				case "-h":
+				case "--help":
 					throw new HelpRequestedException();
-				}
-				case "-d", "--dest_dir" -> {
-					destDir = Path.of(requireValue(args, ++i, arg));
-				}
-				case "-w", "--max_workers" -> {
+				case "-d":
+				case "--dest_dir":
+					destDir = Paths.get(requireValue(args, ++i, arg));
+					break;
+				case "-w":
+				case "--max_workers":
 					maxWorkers = parseInt(requireValue(args, ++i, arg), arg);
-				}
-				case "--output_format" -> {
+					break;
+				case "--output_format":
 					outputFormat = OutputFormat.parse(requireValue(args, ++i, arg));
-				}
-				case "--quiet" -> {
+					break;
+				case "--quiet":
 					quiet = true;
-				}
-				case "--train_fdr" -> {
+					break;
+				case "--train_fdr":
 					trainFdr = parseDouble(requireValue(args, ++i, arg), arg);
-				}
-				case "--test_fdr" -> {
+					break;
+				case "--test_fdr":
 					testFdr = parseDouble(requireValue(args, ++i, arg), arg);
-				}
-				case "--max_iter" -> {
+					break;
+				case "--max_iter":
 					maxIter = parseInt(requireValue(args, ++i, arg), arg);
-				}
-				case "--seed" -> {
+					break;
+				case "--seed":
 					seed = parseLong(requireValue(args, ++i, arg), arg);
-				}
-				case "--direction" -> {
+					break;
+				case "--direction":
 					direction = requireValue(args, ++i, arg);
-				}
-				case "--subset_max_train" -> {
+					break;
+				case "--subset_max_train":
 					subsetMaxTrain = parseInt(requireValue(args, ++i, arg), arg);
-				}
-				case "--write_model_files" -> {
+					break;
+				case "--write_model_files":
 					writeModelFiles = true;
-				}
-				case "--weights" -> {
+					break;
+				case "--weights":
 					saveModelFile = assignSinglePath(saveModelFile, requireValue(args, ++i, arg), "--weights");
-				}
-				case "--write_psm_files" -> {
+					break;
+				case "--write_psm_files":
 					writePsmFiles = true;
-				}
-				case "--write_decoy_files" -> {
+					break;
+				case "--write_decoy_files":
 					writeDecoyFiles = true;
-				}
-				case "--results-peptides" -> {
-					resultsPeptides = Path.of(requireValue(args, ++i, arg));
-				}
-				case "--decoy-results-peptides" -> {
-					decoyResultsPeptides = Path.of(requireValue(args, ++i, arg));
-				}
-				case "--results-psms" -> {
-					resultsPsms = Path.of(requireValue(args, ++i, arg));
-				}
-				case "--decoy-results-psms" -> {
-					decoyResultsPsms = Path.of(requireValue(args, ++i, arg));
-				}
-				case "--mixmax", "--post-processing-mix-max" -> {
+					break;
+				case "--results-peptides":
+					resultsPeptides = Paths.get(requireValue(args, ++i, arg));
+					break;
+				case "--decoy-results-peptides":
+					decoyResultsPeptides = Paths.get(requireValue(args, ++i, arg));
+					break;
+				case "--results-psms":
+					resultsPsms = Paths.get(requireValue(args, ++i, arg));
+					break;
+				case "--decoy-results-psms":
+					decoyResultsPsms = Paths.get(requireValue(args, ++i, arg));
+					break;
+				case "--mixmax":
+				case "--post-processing-mix-max":
 					mixmax = true;
-				}
-				case "--load_models" -> {
+					break;
+				case "--load_models":
 					loadModelFile = assignSinglePath(loadModelFile, requireValue(args, ++i, arg), "--load_models");
-				}
-				case "--init-weights" -> {
+					break;
+				case "--init-weights":
 					loadModelFile = assignSinglePath(loadModelFile, requireValue(args, ++i, arg), "--init-weights");
-				}
-				case "--folds" -> {
+					break;
+				case "--folds":
 					folds = parseInt(requireValue(args, ++i, arg), arg);
-				}
-				case "--max_retries" -> {
+					break;
+				case "--max_retries":
 					maxRetries = parseInt(requireValue(args, ++i, arg), arg);
-				}
-				default -> {
+					break;
+				default:
 					if (arg.startsWith("-")) {
 						throw new IllegalArgumentException("Unknown option: " + arg);
 					}
 					positional.add(arg);
-				}
+					break;
 			}
 		}
 
@@ -136,14 +140,14 @@ public final class CliParser {
 			throw new IllegalArgumentException("Exactly one PIN input file is required.");
 		}
 
-		Path pinFile = Path.of(positional.get(0));
+		Path pinFile = Paths.get(positional.get(0));
 		String lower = pinFile.toString().toLowerCase();
 		if (lower.endsWith(".xml") || lower.endsWith(".pepxml")) {
 			throw new IllegalArgumentException("XML/PepXML input is not supported. Provide a single PIN file.");
 		}
 		Path resolvedDestDir = destDir != null ? destDir : defaultOutputDir(pinFile);
 
-		if (maxWorkers != null && maxWorkers < 1) {
+		if (maxWorkers != null && maxWorkers.intValue() < 1) {
 			throw new IllegalArgumentException("--max_workers must be >= 1");
 		}
 		if (folds < 2) {
@@ -155,7 +159,7 @@ public final class CliParser {
 		if (maxIter < 1) {
 			throw new IllegalArgumentException("--max_iter must be >= 1");
 		}
-		if (subsetMaxTrain != null && subsetMaxTrain < 1) {
+		if (subsetMaxTrain != null && subsetMaxTrain.intValue() < 1) {
 			throw new IllegalArgumentException("--subset_max_train must be >= 1");
 		}
 		if (trainFdr <= 0 || trainFdr >= 1) {
@@ -164,7 +168,7 @@ public final class CliParser {
 		if (testFdr <= 0 || testFdr >= 1) {
 			throw new IllegalArgumentException("--test_fdr must be in (0,1)");
 		}
-		int resolvedMaxWorkers = maxWorkers != null ? maxWorkers : folds;
+		int resolvedMaxWorkers = maxWorkers != null ? maxWorkers.intValue() : folds;
 		Path resolvedSaveModelFile = saveModelFile;
 		if (resolvedSaveModelFile == null && writeModelFiles) {
 			resolvedSaveModelFile = ModelIO.defaultModelPath(pinFile, resolvedDestDir);
@@ -200,46 +204,47 @@ public final class CliParser {
 	 * Prints supported CLI options and usage guidance text.
 	 */
 	public static void printHelp() {
-		String help = """
-			Usage: javapot [options] <pin_file>
-			Options:
-			  -h, --help            Show this help message and exit.
-			  -d DEST_DIR, --dest_dir DEST_DIR
-			                        The directory in which to write the result files. Defaults to the input PIN directory.
-			  -w MAX_WORKERS, --max_workers MAX_WORKERS
-			                        The number of processes to use for model training. Defaults to --folds when omitted. Note that using more than one worker will result in garbled logging messages.
-			  --output_format OUTPUT_FORMAT
-			                        Output TSV schema to write: percolator (default) or mokapot.
-			  --quiet               Suppress progress/status logging output.
-			  --train_fdr TRAIN_FDR
-			                        The maximum false discovery rate at which to consider a target PSM as a positive example during model training.
-			  --test_fdr TEST_FDR   The false-discovery rate threshold at which to evaluate the learned models.
-			  --max_iter MAX_ITER   The number of iterations to use for training.
-			  --seed SEED           An integer to use as the random seed.
-			  --direction DIRECTION
-			                        The name of the feature to use as the initial direction for ranking PSMs.
-			  --subset_max_train SUBSET_MAX_TRAIN
-			                        Maximum number of PSMs to use during the training of each of the cross validation folds in the model.
-			  --write_model_files   Save learned fold models to <pin_base>.model.tsv in --dest_dir.
-			  --weights PATH        Save learned fold models to PATH (Percolator-compatible alias).
-			  --write_psm_files     Write target PSM output files in addition to peptide files.
-			  --write_decoy_files   Write decoy peptide/PSM forensic output files.
-			  --mixmax, --post-processing-mix-max
-			                        Use Percolator mix-max post-processing for q-value and PEP assignment.
-			  --results-peptides PATH
-			                        Write target peptide output to PATH (relative to current working directory).
-			  --decoy-results-peptides PATH
-			                        Write decoy peptide output to PATH (relative to current working directory).
-			  --results-psms PATH
-			                        Write target PSM output to PATH (relative to current working directory).
-			  --decoy-results-psms PATH
-			                        Write decoy PSM output to PATH (relative to current working directory).
-			  --load_models PATH, --init-weights PATH    
-			                        Load Percolator-style text model file and skip model training.
-			  --folds FOLDS         Number of cross-validation folds. Default: 3.
-			  --max_retries MAX_RETRIES
-			                        Number of re-fold attempts after no-label fold failures. Default: 1.
-		""";
+		String help = String.join("\n",
+			"Usage: javapot [options] <pin_file>",
+			"Options:",
+			"  -h, --help            Show this help message and exit.",
+			"  -d DEST_DIR, --dest_dir DEST_DIR",
+			"                        The directory in which to write the result files. Defaults to the input PIN directory.",
+			"  -w MAX_WORKERS, --max_workers MAX_WORKERS",
+			"                        The number of processes to use for model training. Defaults to --folds when omitted. Note that using more than one worker will result in garbled logging messages.",
+			"  --output_format OUTPUT_FORMAT",
+			"                        Output TSV schema to write: percolator (default) or mokapot.",
+			"  --quiet               Suppress progress/status logging output.",
+			"  --train_fdr TRAIN_FDR",
+			"                        The maximum false discovery rate at which to consider a target PSM as a positive example during model training.",
+			"  --test_fdr TEST_FDR   The false-discovery rate threshold at which to evaluate the learned models.",
+			"  --max_iter MAX_ITER   The number of iterations to use for training.",
+			"  --seed SEED           An integer to use as the random seed.",
+			"  --direction DIRECTION",
+			"                        The name of the feature to use as the initial direction for ranking PSMs.",
+			"  --subset_max_train SUBSET_MAX_TRAIN",
+			"                        Maximum number of PSMs to use during the training of each of the cross validation folds in the model.",
+			"  --write_model_files   Save learned fold models to <pin_base>.model.tsv in --dest_dir.",
+			"  --weights PATH        Save learned fold models to PATH (Percolator-compatible alias).",
+			"  --write_psm_files     Write target PSM output files in addition to peptide files.",
+			"  --write_decoy_files   Write decoy peptide/PSM forensic output files.",
+			"  --mixmax, --post-processing-mix-max",
+			"                        Use Percolator mix-max post-processing for q-value and PEP assignment.",
+			"  --results-peptides PATH",
+			"                        Write target peptide output to PATH (relative to current working directory).",
+			"  --decoy-results-peptides PATH",
+			"                        Write decoy peptide output to PATH (relative to current working directory).",
+			"  --results-psms PATH",
+			"                        Write target PSM output to PATH (relative to current working directory).",
+			"  --decoy-results-psms PATH",
+			"                        Write decoy PSM output to PATH (relative to current working directory).",
+			"  --load_models PATH, --init-weights PATH    ",
+			"                        Load Percolator-style text model file and skip model training.",
+			"  --folds FOLDS         Number of cross-validation folds. Default: 3.",
+			"  --max_retries MAX_RETRIES",
+			"                        Number of re-fold attempts after no-label fold failures. Default: 1.",
+			""
+		);
 		System.out.println(help);
 	}
 
@@ -249,7 +254,7 @@ public final class CliParser {
 		if (parent != null) {
 			return parent;
 		}
-		return Path.of(".").toAbsolutePath().normalize();
+		return Paths.get(".").toAbsolutePath().normalize();
 	}
 
 	private static String requireValue(String[] args, int idx, String opt) {
@@ -260,7 +265,7 @@ public final class CliParser {
 	}
 
 	private static Path assignSinglePath(Path existing, String rawPath, String opt) {
-		Path parsed = Path.of(rawPath);
+		Path parsed = Paths.get(rawPath);
 		if (existing != null && !existing.equals(parsed)) {
 			throw new IllegalArgumentException(opt + " cannot be specified more than once with different paths");
 		}

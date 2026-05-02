@@ -2,6 +2,7 @@ package org.searlelab.javapot.pipeline;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.searlelab.javapot.testutil.TestCompat.writeString;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -75,7 +76,7 @@ class NoTrainingDetectionsIntegrationTest {
 		sb.append("d2\t-1\t6\t500.06\t0.0\t0.0\tDECOY2\tD2\n");
 		sb.append("d3\t-1\t7\t500.07\t0.0\t0.0\tDECOY3\tD3\n");
 		sb.append("d4\t-1\t8\t500.08\t0.0\t0.0\tDECOY4\tD4\n");
-		Files.writeString(file, sb.toString());
+		writeString(file, sb.toString());
 	}
 
 	private static void assertAllConfidenceIsForcedToOne(Path file) throws IOException {

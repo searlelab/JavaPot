@@ -5,14 +5,13 @@
 
 	<groupId>org.searlelab</groupId>
 	<artifactId>javapot</artifactId>
-	<version>1.0.4</version>
+	<version>1.0.5</version>
 	<name>JavaPot</name>
 	<description>Java clone of mokapot main Percolator path for PIN input.</description>
 	<url>https://github.com/searlelab/JavaPot</url>
 
 	<properties>
-		<maven.compiler.source>17</maven.compiler.source>
-		<maven.compiler.target>17</maven.compiler.target>
+		<maven.compiler.release>11</maven.compiler.release>
 		<project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
 		<junit.version>5.12.2</junit.version>
 		<jacoco.version>0.8.12</jacoco.version>

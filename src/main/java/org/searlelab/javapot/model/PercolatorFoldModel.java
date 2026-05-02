@@ -1,6 +1,5 @@
 package org.searlelab.javapot.model;
 
-import java.io.Serial;
 import java.io.Serializable;
 import java.util.Arrays;
 
@@ -9,7 +8,6 @@ import java.util.Arrays;
  * It contains scaler parameters, the trained linear SVM, and best-feature metadata for fallback checks.
  */
 public final class PercolatorFoldModel implements Serializable {
-	@Serial
 	private static final long serialVersionUID = 1L;
 
 	private final String[] featureNames;

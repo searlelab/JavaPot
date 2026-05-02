@@ -2,6 +2,8 @@ package org.searlelab.javapot.pipeline;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.searlelab.javapot.testutil.TestCompat.filesEqual;
+import static org.searlelab.javapot.testutil.TestCompat.writeString;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -37,8 +39,8 @@ class MixMaxIntegrationTest {
 		assertTrue(countDuplicateSpectra(mixmaxPsmA) > 0, "Mix-max output should retain multiple targets per spectrum key");
 		assertTrue(countDataRows(mixmaxPsmA) > countDataRows(tdcPsm), "Mix-max PSM output should be larger than TDC output");
 
-		assertEquals(-1L, Files.mismatch(mixmaxPsmA, mixmaxPsmB), "Mix-max PSM output should be deterministic for fixed seed");
-		assertEquals(-1L, Files.mismatch(mixmaxPepA, mixmaxPepB), "Mix-max peptide output should be deterministic for fixed seed");
+		assertTrue(filesEqual(mixmaxPsmA, mixmaxPsmB), "Mix-max PSM output should be deterministic for fixed seed");
+		assertTrue(filesEqual(mixmaxPepA, mixmaxPepB), "Mix-max peptide output should be deterministic for fixed seed");
 
 		assertTrue(hasQvaluePepDifference(mixmaxPsmA), "PSM PEP values should not collapse to q-values");
 		assertTrue(hasQvaluePepDifference(mixmaxPepA), "Peptide PEP values should not collapse to q-values");
@@ -90,7 +92,7 @@ class MixMaxIntegrationTest {
 			sb.append("d").append(scan).append("\t-1\t").append(scan).append('\t').append(expMass).append('\t')
 				.append(base - 3.0).append("\tDECOY_").append(scan).append("\tPROT_D\n");
 		}
-		Files.writeString(file, sb.toString());
+		writeString(file, sb.toString());
 		return file;
 	}
 

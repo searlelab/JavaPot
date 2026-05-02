@@ -5,15 +5,17 @@ import java.io.IOException;
 import java.io.PrintStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
-import java.util.LinkedHashMap;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import org.searlelab.javapot.data.PsmDataset;
@@ -68,51 +70,53 @@ public final class JavaPotBakeoff {
 		for (int i = 0; i < args.length; i++) {
 			String arg = args[i];
 			switch (arg) {
-				case "-h", "--help" -> {
+				case "-h":
+				case "--help":
 					throw new HelpRequestedException();
-				}
-				case "--direction" -> {
+				case "--direction":
 					requiredStartFeaturesRaw = requireValue(args, ++i, arg);
-				}
-				case "--train_fdr" -> {
+					break;
+				case "--train_fdr":
 					trainFdr = parseDouble(requireValue(args, ++i, arg), arg);
-				}
-				case "--test_fdr" -> {
+					break;
+				case "--test_fdr":
 					testFdr = parseDouble(requireValue(args, ++i, arg), arg);
-				}
-				case "--max_iter" -> {
+					break;
+				case "--max_iter":
 					maxIter = parseInt(requireValue(args, ++i, arg), arg);
-				}
-				case "--seed" -> {
+					break;
+				case "--seed":
 					seed = parseLong(requireValue(args, ++i, arg), arg);
-				}
-				case "--subset_max_train" -> {
+					break;
+				case "--subset_max_train":
 					subsetMaxTrain = parseInt(requireValue(args, ++i, arg), arg);
-				}
-				case "--folds" -> {
+					break;
+				case "--folds":
 					folds = parseInt(requireValue(args, ++i, arg), arg);
-				}
-				case "-w", "--max_workers" -> {
+					break;
+				case "-w":
+				case "--max_workers":
 					maxWorkers = parseInt(requireValue(args, ++i, arg), arg);
-				}
-				case "--max_retries" -> {
+					break;
+				case "--max_retries":
 					maxRetries = parseInt(requireValue(args, ++i, arg), arg);
-				}
-				case "--mixmax", "--post-processing-mix-max" -> {
+					break;
+				case "--mixmax":
+				case "--post-processing-mix-max":
 					mixmax = true;
-				}
-				case "--min_improvement_percent" -> {
+					break;
+				case "--min_improvement_percent":
 					minImprovementPercent = parseDouble(requireValue(args, ++i, arg), arg);
-				}
-				default -> {
+					break;
+				default:
 					if (arg.startsWith("-")) {
 						throw new IllegalArgumentException("Unknown option: " + arg);
 					}
 					if (featureSetDir != null) {
 						throw new IllegalArgumentException("Exactly one feature-set directory is required.");
 					}
-					featureSetDir = Path.of(arg);
-				}
+					featureSetDir = Paths.get(arg);
+					break;
 			}
 		}
 
@@ -180,28 +184,29 @@ public final class JavaPotBakeoff {
 	}
 
 	public static void printHelp() {
-		String help = """
-			Usage: javapot-bakeoff [options] --direction FEATURE[,FEATURE...] <feature_dir>
-			Options:
-			  -h, --help            Show this help message and exit.
-			  --direction FEATURES  Comma-separated required starting features; first feature is used as training direction.
-			  --min_improvement_percent PCT
-			                        Minimum required percent improvement to keep adding features (default: 0.1).
-			  --train_fdr TRAIN_FDR
-			                        Train-time FDR threshold. Default: 0.01.
-			  --test_fdr TEST_FDR   Test-time FDR threshold used for peptide counting. Default: 0.01.
-			  --max_iter MAX_ITER   Max training iterations per fold. Default: 10.
-			  --seed SEED           Random seed for deterministic fold splits/training. Default: 1.
-			  --subset_max_train N  Optional cap on fold training-set size.
-			  --folds FOLDS         Number of cross-validation folds. Default: 3.
-			  -w, --max_workers N   Number of training workers (defaults to --folds).
-			  --max_retries N       Re-fold retries after no-label fold failures. Default: 1.
-			  --mixmax, --post-processing-mix-max
-			                        Use Percolator mix-max post-processing.
-			Output annotations:
-			  feature*             Feature coefficient sign flipped against baseline direction.
-			  feature~             Feature has a minimal directionality vector (level / near non-directional).
-		""";
+		String help = String.join("\n",
+			"Usage: javapot-bakeoff [options] --direction FEATURE[,FEATURE...] <feature_dir>",
+			"Options:",
+			"  -h, --help            Show this help message and exit.",
+			"  --direction FEATURES  Comma-separated required starting features; first feature is used as training direction.",
+			"  --min_improvement_percent PCT",
+			"                        Minimum required percent improvement to keep adding features (default: 0.1).",
+			"  --train_fdr TRAIN_FDR",
+			"                        Train-time FDR threshold. Default: 0.01.",
+			"  --test_fdr TEST_FDR   Test-time FDR threshold used for peptide counting. Default: 0.01.",
+			"  --max_iter MAX_ITER   Max training iterations per fold. Default: 10.",
+			"  --seed SEED           Random seed for deterministic fold splits/training. Default: 1.",
+			"  --subset_max_train N  Optional cap on fold training-set size.",
+			"  --folds FOLDS         Number of cross-validation folds. Default: 3.",
+			"  -w, --max_workers N   Number of training workers (defaults to --folds).",
+			"  --max_retries N       Re-fold retries after no-label fold failures. Default: 1.",
+			"  --mixmax, --post-processing-mix-max",
+			"                        Use Percolator mix-max post-processing.",
+			"Output annotations:",
+			"  feature*             Feature coefficient sign flipped against baseline direction.",
+			"  feature~             Feature has a minimal directionality vector (level / near non-directional).",
+			""
+		);
 		System.out.println(help);
 	}
 
@@ -424,9 +429,15 @@ public final class JavaPotBakeoff {
 		int level = 0;
 		for (FeatureDirectionality value : directionality.values()) {
 			switch (value) {
-				case HIGH_TARGET_WHEN_HIGHER -> high++;
-				case HIGH_TARGET_WHEN_LOWER -> low++;
-				case LEVEL -> level++;
+				case HIGH_TARGET_WHEN_HIGHER:
+					high++;
+					break;
+				case HIGH_TARGET_WHEN_LOWER:
+					low++;
+					break;
+				case LEVEL:
+					level++;
+					break;
 			}
 		}
 		System.out.println(
@@ -595,7 +606,7 @@ public final class JavaPotBakeoff {
 				.filter(Files::isRegularFile)
 				.filter(JavaPotBakeoff::isSupportedInputFile)
 				.sorted()
-				.toList();
+				.collect(Collectors.toList());
 		} catch (IOException e) {
 			throw new RuntimeException("Failed listing feature-set directory: " + featureSetDir, e);
 		}
@@ -608,7 +619,7 @@ public final class JavaPotBakeoff {
 
 	private static void deleteDirectoryQuietly(Path dir) {
 		try (Stream<Path> stream = Files.walk(dir)) {
-			List<Path> toDelete = stream.sorted(Comparator.reverseOrder()).toList();
+			List<Path> toDelete = stream.sorted(Comparator.reverseOrder()).collect(Collectors.toList());
 			for (Path path : toDelete) {
 				Files.deleteIfExists(path);
 			}
@@ -700,34 +711,94 @@ public final class JavaPotBakeoff {
 		TrialEvaluation evaluate(List<String> featureSet);
 	}
 
-	record BakeoffConfig(
-		Path featureSetDir,
-		List<Path> pinFiles,
-		String direction,
-		List<String> requiredStartFeatures,
-		double trainFdr,
-		double testFdr,
-		int maxIter,
-		long seed,
-		Integer subsetMaxTrain,
-		int folds,
-		int maxWorkers,
-		int maxRetries,
-		boolean mixmax,
-		double minImprovementPercent
-	) {
+	static final class BakeoffConfig {
+		private final Path featureSetDir;
+		private final List<Path> pinFiles;
+		private final String direction;
+		private final List<String> requiredStartFeatures;
+		private final double trainFdr;
+		private final double testFdr;
+		private final int maxIter;
+		private final long seed;
+		private final Integer subsetMaxTrain;
+		private final int folds;
+		private final int maxWorkers;
+		private final int maxRetries;
+		private final boolean mixmax;
+		private final double minImprovementPercent;
+
+		BakeoffConfig(
+			Path featureSetDir,
+			List<Path> pinFiles,
+			String direction,
+			List<String> requiredStartFeatures,
+			double trainFdr,
+			double testFdr,
+			int maxIter,
+			long seed,
+			Integer subsetMaxTrain,
+			int folds,
+			int maxWorkers,
+			int maxRetries,
+			boolean mixmax,
+			double minImprovementPercent
+		) {
+			this.featureSetDir = featureSetDir;
+			this.pinFiles = pinFiles;
+			this.direction = direction;
+			this.requiredStartFeatures = requiredStartFeatures;
+			this.trainFdr = trainFdr;
+			this.testFdr = testFdr;
+			this.maxIter = maxIter;
+			this.seed = seed;
+			this.subsetMaxTrain = subsetMaxTrain;
+			this.folds = folds;
+			this.maxWorkers = maxWorkers;
+			this.maxRetries = maxRetries;
+			this.mixmax = mixmax;
+			this.minImprovementPercent = minImprovementPercent;
+		}
+
+		Path featureSetDir() { return featureSetDir; }
+		List<Path> pinFiles() { return pinFiles; }
+		String direction() { return direction; }
+		List<String> requiredStartFeatures() { return requiredStartFeatures; }
+		double trainFdr() { return trainFdr; }
+		double testFdr() { return testFdr; }
+		int maxIter() { return maxIter; }
+		long seed() { return seed; }
+		Integer subsetMaxTrain() { return subsetMaxTrain; }
+		int folds() { return folds; }
+		int maxWorkers() { return maxWorkers; }
+		int maxRetries() { return maxRetries; }
+		boolean mixmax() { return mixmax; }
+		double minImprovementPercent() { return minImprovementPercent; }
 	}
 
-	record BakeoffOutcome(
-		List<String> keptFeatures,
-		long totalPeptides
-	) {
+	static final class BakeoffOutcome {
+		private final List<String> keptFeatures;
+		private final long totalPeptides;
+
+		BakeoffOutcome(List<String> keptFeatures, long totalPeptides) {
+			this.keptFeatures = keptFeatures;
+			this.totalPeptides = totalPeptides;
+		}
+
+		List<String> keptFeatures() { return keptFeatures; }
+		long totalPeptides() { return totalPeptides; }
 	}
 
-	record TrialEvaluation(
-		long totalPeptides,
-		Set<String> flippedFeatures
-	) {
+	static final class TrialEvaluation {
+		private final long totalPeptides;
+		private final Set<String> flippedFeatures;
+
+		TrialEvaluation(long totalPeptides, Set<String> flippedFeatures) {
+			this.totalPeptides = totalPeptides;
+			this.flippedFeatures = flippedFeatures;
+		}
+
+		long totalPeptides() { return totalPeptides; }
+		Set<String> flippedFeatures() { return flippedFeatures; }
 	}
 
 	enum FeatureDirectionality {
@@ -736,12 +807,31 @@ public final class JavaPotBakeoff {
 		LEVEL
 	}
 
-	private record SourcePin(
-		Path pinFile,
-		PsmDataset dataset,
-		List<String> headers,
-		List<String> featureNames,
-		Set<String> featureNameSet
-	) {
+	private static final class SourcePin {
+		private final Path pinFile;
+		private final PsmDataset dataset;
+		private final List<String> headers;
+		private final List<String> featureNames;
+		private final Set<String> featureNameSet;
+
+		private SourcePin(
+			Path pinFile,
+			PsmDataset dataset,
+			List<String> headers,
+			List<String> featureNames,
+			Set<String> featureNameSet
+		) {
+			this.pinFile = pinFile;
+			this.dataset = dataset;
+			this.headers = headers;
+			this.featureNames = featureNames;
+			this.featureNameSet = featureNameSet;
+		}
+
+		private Path pinFile() { return pinFile; }
+		private PsmDataset dataset() { return dataset; }
+		private List<String> headers() { return headers; }
+		private List<String> featureNames() { return featureNames; }
+		private Set<String> featureNameSet() { return featureNameSet; }
 	}
 }

@@ -148,6 +148,33 @@ public final class ClassWeightGridSearch {
 	/**
 	 * CvSplit stores one deterministic train/test split for class-weight evaluation.
 	 */
-	private record CvSplit(double[][] xTrain, int[] yTrainSigned, double[][] xTest, int[] yTest01) {
+	private static final class CvSplit {
+		private final double[][] xTrain;
+		private final int[] yTrainSigned;
+		private final double[][] xTest;
+		private final int[] yTest01;
+
+		private CvSplit(double[][] xTrain, int[] yTrainSigned, double[][] xTest, int[] yTest01) {
+			this.xTrain = xTrain;
+			this.yTrainSigned = yTrainSigned;
+			this.xTest = xTest;
+			this.yTest01 = yTest01;
+		}
+
+		private double[][] xTrain() {
+			return xTrain;
+		}
+
+		private int[] yTrainSigned() {
+			return yTrainSigned;
+		}
+
+		private double[][] xTest() {
+			return xTest;
+		}
+
+		private int[] yTest01() {
+			return yTest01;
+		}
 	}
 }

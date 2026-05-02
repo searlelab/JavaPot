@@ -15,12 +15,15 @@ public enum OutputFormat {
 	 */
 	public static OutputFormat parse(String value) {
 		String normalized = value.trim().toUpperCase(Locale.ROOT);
-		return switch (normalized) {
-			case "PERCOLATOR" -> PERCOLATOR;
-			case "MOKAPOT" -> MOKAPOT;
-			default -> throw new IllegalArgumentException(
-				"Invalid value for --output_format: " + value + ". Expected one of: percolator, mokapot"
-			);
-		};
+		switch (normalized) {
+			case "PERCOLATOR":
+				return PERCOLATOR;
+			case "MOKAPOT":
+				return MOKAPOT;
+			default:
+				throw new IllegalArgumentException(
+					"Invalid value for --output_format: " + value + ". Expected one of: percolator, mokapot"
+				);
+		}
 	}
 }

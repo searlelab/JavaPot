@@ -9,6 +9,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import java.io.ByteArrayOutputStream;
 import java.io.PrintStream;
 import java.nio.file.Path;
+import java.nio.file.Paths;
 
 import org.junit.jupiter.api.Test;
 
@@ -16,8 +17,8 @@ class CliParserTest {
 	@Test
 	void parsesDefaultsAndPositionalPin() {
 		JavaPotOptions cfg = CliParser.parse(new String[]{"/tmp/test.pin"});
-		assertEquals(Path.of("/tmp/test.pin"), cfg.pinFile());
-		assertEquals(Path.of("/tmp"), cfg.destDir());
+		assertEquals(Paths.get("/tmp/test.pin"), cfg.pinFile());
+		assertEquals(Paths.get("/tmp"), cfg.destDir());
 		assertEquals(3, cfg.maxWorkers());
 		assertEquals(OutputFormat.PERCOLATOR, cfg.outputFormat());
 		assertFalse(cfg.quiet());
@@ -61,7 +62,7 @@ class CliParserTest {
 	@Test
 	void parsesSingleLoadModelPath() {
 		JavaPotOptions cfg = CliParser.parse(new String[]{"input.pin", "--load_models", "m1.model.tsv", "--folds", "2"});
-		assertEquals(Path.of("m1.model.tsv"), cfg.loadModelFile());
+		assertEquals(Paths.get("m1.model.tsv"), cfg.loadModelFile());
 		assertEquals(2, cfg.folds());
 		assertEquals(2, cfg.maxWorkers());
 		assertEquals(OutputFormat.PERCOLATOR, cfg.outputFormat());
@@ -104,8 +105,8 @@ class CliParserTest {
 			"--folds", "5",
 			"--max_retries", "4"
 		});
-		assertEquals(Path.of("input.pin"), cfg.pinFile());
-		assertEquals(Path.of("/tmp/out"), cfg.destDir());
+		assertEquals(Paths.get("input.pin"), cfg.pinFile());
+		assertEquals(Paths.get("/tmp/out"), cfg.destDir());
 		assertEquals(3, cfg.maxWorkers());
 		assertTrue(cfg.quiet());
 		assertEquals(0.02, cfg.trainFdr());
@@ -115,7 +116,7 @@ class CliParserTest {
 		assertEquals("featA", cfg.direction());
 		assertEquals(777, cfg.subsetMaxTrain());
 		assertEquals(OutputFormat.MOKAPOT, cfg.outputFormat());
-		assertEquals(Path.of("/tmp/out/input.model.tsv"), cfg.saveModelFile());
+		assertEquals(Paths.get("/tmp/out/input.model.tsv"), cfg.saveModelFile());
 		assertTrue(cfg.writePsmFiles());
 		assertTrue(cfg.writeDecoyFiles());
 		assertEquals(5, cfg.folds());
@@ -130,8 +131,8 @@ class CliParserTest {
 			"--weights", "saved.model.tsv",
 			"--init-weights", "load.model.tsv"
 		});
-		assertEquals(Path.of("saved.model.tsv"), cfg.saveModelFile());
-		assertEquals(Path.of("load.model.tsv"), cfg.loadModelFile());
+		assertEquals(Paths.get("saved.model.tsv"), cfg.saveModelFile());
+		assertEquals(Paths.get("load.model.tsv"), cfg.loadModelFile());
 	}
 
 	@Test
@@ -139,9 +140,9 @@ class CliParserTest {
 		JavaPotOptions fromPin = CliParser.parse(new String[]{"/tmp/sample.pin", "--write_model_files"});
 		JavaPotOptions fromTsv = CliParser.parse(new String[]{"/tmp/sample.tsv", "--write_model_files"});
 		JavaPotOptions fromTxt = CliParser.parse(new String[]{"/tmp/sample.txt", "--write_model_files"});
-		assertEquals(Path.of("/tmp/sample.model.tsv"), fromPin.saveModelFile());
-		assertEquals(Path.of("/tmp/sample.model.tsv"), fromTsv.saveModelFile());
-		assertEquals(Path.of("/tmp/sample.model.tsv"), fromTxt.saveModelFile());
+		assertEquals(Paths.get("/tmp/sample.model.tsv"), fromPin.saveModelFile());
+		assertEquals(Paths.get("/tmp/sample.model.tsv"), fromTsv.saveModelFile());
+		assertEquals(Paths.get("/tmp/sample.model.tsv"), fromTxt.saveModelFile());
 	}
 
 	@Test
@@ -165,10 +166,10 @@ class CliParserTest {
 			"--results-psms", "out/target_psms.tsv",
 			"--decoy-results-psms", "out/decoy_psms.tsv"
 		});
-		assertEquals(Path.of("out/target_peptides.tsv"), cfg.resultsPeptides());
-		assertEquals(Path.of("out/decoy_peptides.tsv"), cfg.decoyResultsPeptides());
-		assertEquals(Path.of("out/target_psms.tsv"), cfg.resultsPsms());
-		assertEquals(Path.of("out/decoy_psms.tsv"), cfg.decoyResultsPsms());
+		assertEquals(Paths.get("out/target_peptides.tsv"), cfg.resultsPeptides());
+		assertEquals(Paths.get("out/decoy_peptides.tsv"), cfg.decoyResultsPeptides());
+		assertEquals(Paths.get("out/target_psms.tsv"), cfg.resultsPsms());
+		assertEquals(Paths.get("out/decoy_psms.tsv"), cfg.decoyResultsPsms());
 	}
 
 	@Test
@@ -261,7 +262,7 @@ class CliParserTest {
 
 	@Test
 	void privateCliEntrypointConstructorIsInvocableViaReflection() throws Exception {
-		var ctor = JavaPotCli.class.getDeclaredConstructor();
+		java.lang.reflect.Constructor<JavaPotCli> ctor = JavaPotCli.class.getDeclaredConstructor();
 		ctor.setAccessible(true);
 		Object instance = ctor.newInstance();
 		assertEquals(JavaPotCli.class, instance.getClass());

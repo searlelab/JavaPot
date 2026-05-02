@@ -334,23 +334,82 @@ public final class FoldSplitter {
 		}
 	}
 
-	private record Group(String key, long hash, int[] rows, int targets, int decoys) {
+	private static final class Group {
+		private final String key;
+		private final long hash;
+		private final int[] rows;
+		private final int targets;
+		private final int decoys;
+
+		private Group(String key, long hash, int[] rows, int targets, int decoys) {
+			this.key = key;
+			this.hash = hash;
+			this.rows = rows;
+			this.targets = targets;
+			this.decoys = decoys;
+		}
 	}
 
-	private record GroupBuildResult(Group[] groups) {
+	private static final class GroupBuildResult {
+		private final Group[] groups;
+
+		private GroupBuildResult(Group[] groups) {
+			this.groups = groups;
+		}
+
+		private Group[] groups() {
+			return groups;
+		}
 	}
 
-	private record FoldStats(int[] targetsPerFold, int[] decoysPerFold, int[] sizesPerFold) {
+	private static final class FoldStats {
+		private final int[] targetsPerFold;
+		private final int[] decoysPerFold;
+		private final int[] sizesPerFold;
+
+		private FoldStats(int[] targetsPerFold, int[] decoysPerFold, int[] sizesPerFold) {
+			this.targetsPerFold = targetsPerFold;
+			this.decoysPerFold = decoysPerFold;
+			this.sizesPerFold = sizesPerFold;
+		}
+
+		private int[] targetsPerFold() {
+			return targetsPerFold;
+		}
+
+		private int[] decoysPerFold() {
+			return decoysPerFold;
+		}
+
+		private int[] sizesPerFold() {
+			return sizesPerFold;
+		}
 	}
 
-	private record MoveCandidate(
-		int groupIdx,
-		int fromFold,
-		boolean emptiesOpposite,
-		int groupSize,
-		int donorSurplus,
-		String key
-	) implements Comparable<MoveCandidate> {
+	private static final class MoveCandidate implements Comparable<MoveCandidate> {
+		private final int groupIdx;
+		private final int fromFold;
+		private final boolean emptiesOpposite;
+		private final int groupSize;
+		private final int donorSurplus;
+		private final String key;
+
+		private MoveCandidate(
+			int groupIdx,
+			int fromFold,
+			boolean emptiesOpposite,
+			int groupSize,
+			int donorSurplus,
+			String key
+		) {
+			this.groupIdx = groupIdx;
+			this.fromFold = fromFold;
+			this.emptiesOpposite = emptiesOpposite;
+			this.groupSize = groupSize;
+			this.donorSurplus = donorSurplus;
+			this.key = key;
+		}
+
 		@Override
 		public int compareTo(MoveCandidate other) {
 			int emptiesCmp = Boolean.compare(this.emptiesOpposite, other.emptiesOpposite);

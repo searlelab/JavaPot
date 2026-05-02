@@ -2,12 +2,14 @@ package org.searlelab.javapot.pipeline;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.searlelab.javapot.testutil.TestCompat.filesEqual;
 
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.net.URISyntaxException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.HashSet;
 import java.util.Objects;
 import java.util.Set;
@@ -31,13 +33,13 @@ class SeedConsistencyIntegrationTest {
 		RunOutput seedOneB = runAnalysis(pinFile, 1L, "seed1_b");
 		RunOutput seedTwo = runAnalysis(pinFile, 2L, "seed2");
 
-		assertEquals(-1L, Files.mismatch(seedOneA.psmFile(), seedOneB.psmFile()), "PSM output changed for same seed");
-		assertEquals(-1L, Files.mismatch(seedOneA.peptideFile(), seedOneB.peptideFile()), "Peptide output changed for same seed");
+		assertTrue(filesEqual(seedOneA.psmFile(), seedOneB.psmFile()), "PSM output changed for same seed");
+		assertTrue(filesEqual(seedOneA.peptideFile(), seedOneB.peptideFile()), "Peptide output changed for same seed");
 		assertEquals(seedOneA.summary(), seedOneB.summary(), "Summary changed for same seed");
 
 		boolean seedChangedOutput =
-			Files.mismatch(seedOneA.psmFile(), seedTwo.psmFile()) != -1L ||
-			Files.mismatch(seedOneA.peptideFile(), seedTwo.peptideFile()) != -1L;
+			!filesEqual(seedOneA.psmFile(), seedTwo.psmFile()) ||
+			!filesEqual(seedOneA.peptideFile(), seedTwo.peptideFile());
 		assertTrue(seedChangedOutput, "Changing seed should produce a slightly different result");
 
 		assertRelativeDiffAtMost(
@@ -86,7 +88,7 @@ class SeedConsistencyIntegrationTest {
 	}
 
 	private static Path resourcePin() throws URISyntaxException {
-		return Path.of(Objects.requireNonNull(
+		return Paths.get(Objects.requireNonNull(
 			SeedConsistencyIntegrationTest.class.getResource("/data/10k_psms_test.pin"),
 			"Resource not found: /data/10k_psms_test.pin"
 		).toURI());
@@ -190,9 +192,70 @@ class SeedConsistencyIntegrationTest {
 		);
 	}
 
-	private record RunSummary(int psmAtFdr, int peptideAtFdr, Set<String> peptidesAtFdr) {
+	private static final class RunSummary {
+		private final int psmAtFdr;
+		private final int peptideAtFdr;
+		private final Set<String> peptidesAtFdr;
+
+		private RunSummary(int psmAtFdr, int peptideAtFdr, Set<String> peptidesAtFdr) {
+			this.psmAtFdr = psmAtFdr;
+			this.peptideAtFdr = peptideAtFdr;
+			this.peptidesAtFdr = peptidesAtFdr;
+		}
+
+		private int psmAtFdr() {
+			return psmAtFdr;
+		}
+
+		private int peptideAtFdr() {
+			return peptideAtFdr;
+		}
+
+		private Set<String> peptidesAtFdr() {
+			return peptidesAtFdr;
+		}
+
+		@Override
+		public boolean equals(Object obj) {
+			if (this == obj) {
+				return true;
+			}
+			if (!(obj instanceof RunSummary)) {
+				return false;
+			}
+			RunSummary other = (RunSummary) obj;
+			return psmAtFdr == other.psmAtFdr
+				&& peptideAtFdr == other.peptideAtFdr
+				&& Objects.equals(peptidesAtFdr, other.peptidesAtFdr);
+		}
+
+		@Override
+		public int hashCode() {
+			return Objects.hash(psmAtFdr, peptideAtFdr, peptidesAtFdr);
+		}
 	}
 
-	private record RunOutput(Path psmFile, Path peptideFile, RunSummary summary) {
+	private static final class RunOutput {
+		private final Path psmFile;
+		private final Path peptideFile;
+		private final RunSummary summary;
+
+		private RunOutput(Path psmFile, Path peptideFile, RunSummary summary) {
+			this.psmFile = psmFile;
+			this.peptideFile = peptideFile;
+			this.summary = summary;
+		}
+
+		private Path psmFile() {
+			return psmFile;
+		}
+
+		private Path peptideFile() {
+			return peptideFile;
+		}
+
+		private RunSummary summary() {
+			return summary;
+		}
 	}
 }

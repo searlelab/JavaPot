@@ -1123,36 +1123,123 @@ public final class JavaPotRunner {
 	/**
 	 * OutputTables carries fully materialized PSM and peptide report tables for file writing.
 	 */
-	private record OutputTables(
-		List<String> psmHeader,
-		List<String[]> targetPsmRows,
-		List<String[]> decoyPsmRows,
-		List<String> peptideHeader,
-		List<String[]> targetPeptideRows,
-		List<String[]> decoyPeptideRows,
-		int peptidesAtThreshold,
-		ArrayList<JavaPotPeptide> psmResults,
-		ArrayList<JavaPotPeptide> peptideResults,
-		Double psmPi0,
-		Double peptidePi0
-	) {
+	private static final class OutputTables {
+		private final List<String> psmHeader;
+		private final List<String[]> targetPsmRows;
+		private final List<String[]> decoyPsmRows;
+		private final List<String> peptideHeader;
+		private final List<String[]> targetPeptideRows;
+		private final List<String[]> decoyPeptideRows;
+		private final int peptidesAtThreshold;
+		private final ArrayList<JavaPotPeptide> psmResults;
+		private final ArrayList<JavaPotPeptide> peptideResults;
+		private final Double psmPi0;
+		private final Double peptidePi0;
+
+		private OutputTables(
+			List<String> psmHeader,
+			List<String[]> targetPsmRows,
+			List<String[]> decoyPsmRows,
+			List<String> peptideHeader,
+			List<String[]> targetPeptideRows,
+			List<String[]> decoyPeptideRows,
+			int peptidesAtThreshold,
+			ArrayList<JavaPotPeptide> psmResults,
+			ArrayList<JavaPotPeptide> peptideResults,
+			Double psmPi0,
+			Double peptidePi0
+		) {
+			this.psmHeader = psmHeader;
+			this.targetPsmRows = targetPsmRows;
+			this.decoyPsmRows = decoyPsmRows;
+			this.peptideHeader = peptideHeader;
+			this.targetPeptideRows = targetPeptideRows;
+			this.decoyPeptideRows = decoyPeptideRows;
+			this.peptidesAtThreshold = peptidesAtThreshold;
+			this.psmResults = psmResults;
+			this.peptideResults = peptideResults;
+			this.psmPi0 = psmPi0;
+			this.peptidePi0 = peptidePi0;
+		}
+
+		private List<String> psmHeader() { return psmHeader; }
+		private List<String[]> targetPsmRows() { return targetPsmRows; }
+		private List<String[]> decoyPsmRows() { return decoyPsmRows; }
+		private List<String> peptideHeader() { return peptideHeader; }
+		private List<String[]> targetPeptideRows() { return targetPeptideRows; }
+		private List<String[]> decoyPeptideRows() { return decoyPeptideRows; }
+		private int peptidesAtThreshold() { return peptidesAtThreshold; }
+		private ArrayList<JavaPotPeptide> psmResults() { return psmResults; }
+		private ArrayList<JavaPotPeptide> peptideResults() { return peptideResults; }
+		private Double psmPi0() { return psmPi0; }
+		private Double peptidePi0() { return peptidePi0; }
 	}
 
-	private record OutputPlan(
-		Path targetPsmPath,
-		Path targetPeptidePath,
-		Path decoyPsmPath,
-		Path decoyPeptidePath
-	) {
+	private static final class OutputPlan {
+		private final Path targetPsmPath;
+		private final Path targetPeptidePath;
+		private final Path decoyPsmPath;
+		private final Path decoyPeptidePath;
+
+		private OutputPlan(Path targetPsmPath, Path targetPeptidePath, Path decoyPsmPath, Path decoyPeptidePath) {
+			this.targetPsmPath = targetPsmPath;
+			this.targetPeptidePath = targetPeptidePath;
+			this.decoyPsmPath = decoyPsmPath;
+			this.decoyPeptidePath = decoyPeptidePath;
+		}
+
+		private Path targetPsmPath() { return targetPsmPath; }
+		private Path targetPeptidePath() { return targetPeptidePath; }
+		private Path decoyPsmPath() { return decoyPsmPath; }
+		private Path decoyPeptidePath() { return decoyPeptidePath; }
 	}
 
-	private record FeatureStartChoice(String featureName, boolean descending, int passCount) {
+	private static final class FeatureStartChoice {
+		private final String featureName;
+		private final boolean descending;
+		private final int passCount;
+
+		private FeatureStartChoice(String featureName, boolean descending, int passCount) {
+			this.featureName = featureName;
+			this.descending = descending;
+			this.passCount = passCount;
+		}
+
+		private String featureName() { return featureName; }
+		private boolean descending() { return descending; }
+		private int passCount() { return passCount; }
 	}
 
-	private record TrainingRecovery(List<PercolatorFoldModel> models, double[] scores, boolean forceNoDetections) {
+	private static final class TrainingRecovery {
+		private final List<PercolatorFoldModel> models;
+		private final double[] scores;
+		private final boolean forceNoDetections;
+
+		private TrainingRecovery(List<PercolatorFoldModel> models, double[] scores, boolean forceNoDetections) {
+			this.models = models;
+			this.scores = scores;
+			this.forceNoDetections = forceNoDetections;
+		}
+
+		private List<PercolatorFoldModel> models() { return models; }
+		private double[] scores() { return scores; }
+		private boolean forceNoDetections() { return forceNoDetections; }
 	}
 
-	private record ConfidenceResult(double[] qValues, double[] pepValues, Double pi0) {
+	private static final class ConfidenceResult {
+		private final double[] qValues;
+		private final double[] pepValues;
+		private final Double pi0;
+
+		private ConfidenceResult(double[] qValues, double[] pepValues, Double pi0) {
+			this.qValues = qValues;
+			this.pepValues = pepValues;
+			this.pi0 = pi0;
+		}
+
+		private double[] qValues() { return qValues; }
+		private double[] pepValues() { return pepValues; }
+		private Double pi0() { return pi0; }
 	}
 
 	private static final class GroupCounts {

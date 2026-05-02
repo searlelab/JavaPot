@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import java.net.URISyntaxException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.Objects;
 
 import org.junit.jupiter.api.Test;
@@ -59,7 +60,7 @@ class OutputFormatIntegrationTest {
 	}
 
 	private static Path resourcePin() throws URISyntaxException {
-		return Path.of(Objects.requireNonNull(
+		return Paths.get(Objects.requireNonNull(
 			OutputFormatIntegrationTest.class.getResource("/data/10k_psms_test.pin"),
 			"Resource not found: /data/10k_psms_test.pin"
 		).toURI());

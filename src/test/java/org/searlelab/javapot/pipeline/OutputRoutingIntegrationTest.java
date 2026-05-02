@@ -2,6 +2,7 @@ package org.searlelab.javapot.pipeline;
 
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.searlelab.javapot.testutil.TestCompat.writeString;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -119,7 +120,7 @@ class OutputRoutingIntegrationTest {
 			sb.append("d").append(scan).append("\t-1\t").append(scan).append('\t').append(expMass).append('\t')
 				.append(decoyScore).append("\tDECOY_").append(scan).append("\tPROT_D\n");
 		}
-		Files.writeString(path, sb.toString());
+		writeString(path, sb.toString());
 		return path;
 	}
 

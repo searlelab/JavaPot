@@ -1,6 +1,8 @@
 package org.searlelab.javapot.pipeline;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.searlelab.javapot.testutil.TestCompat.filesEqual;
+import static org.searlelab.javapot.testutil.TestCompat.writeString;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.io.IOException;
@@ -56,8 +58,8 @@ class LoadModelsOrderingIntegrationTest {
 			"--load_models", modelFile.toString()
 		});
 
-		assertEquals(-1L, Files.mismatch(trainDir.resolve("load_models.psms.tsv"), loadedOut.resolve("load_models.psms.tsv")));
-		assertEquals(-1L, Files.mismatch(trainDir.resolve("load_models.peptides.tsv"), loadedOut.resolve("load_models.peptides.tsv")));
+		assertTrue(filesEqual(trainDir.resolve("load_models.psms.tsv"), loadedOut.resolve("load_models.psms.tsv")));
+		assertTrue(filesEqual(trainDir.resolve("load_models.peptides.tsv"), loadedOut.resolve("load_models.peptides.tsv")));
 	}
 
 	private static Path writeSyntheticPin(Path file) throws IOException {
@@ -73,7 +75,7 @@ class LoadModelsOrderingIntegrationTest {
 			sb.append("d").append(scan).append("\t-1\t").append(scan).append('\t').append(expMass).append('\t')
 				.append(base - 2.0).append("\tDECOY_").append(scan).append("\tPROT_D\n");
 		}
-		Files.writeString(file, sb.toString());
+		writeString(file, sb.toString());
 		return file;
 	}
 }

@@ -12,7 +12,7 @@ JavaPot is a Java clone of Dr. Will Fondrie's mokapot main code path for Percola
 - Confidence output tables written with `<pin_name>` prefixes (for example, `sample.peptides.tsv`).
 
 ## Requirements
-- Java 17
+- Java 11+
 - Maven 3.9+
 
 ## Build

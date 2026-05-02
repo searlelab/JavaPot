@@ -8,6 +8,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.PrintStream;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -29,9 +30,9 @@ class JavaPotBakeoffTest {
 		Files.createDirectories(featureDir);
 		Path aPin = featureDir.resolve("a.pin");
 		Path bTxt = featureDir.resolve("b.txt");
-		Files.writeString(aPin, "header\n");
-		Files.writeString(bTxt, "header\n");
-		Files.writeString(featureDir.resolve("ignore.csv"), "header\n");
+		writeString(aPin, "header\n");
+		writeString(bTxt, "header\n");
+		writeString(featureDir.resolve("ignore.csv"), "header\n");
 
 		JavaPotBakeoff.BakeoffConfig config = JavaPotBakeoff.parse(new String[]{
 			"--direction", "featA",
@@ -51,7 +52,7 @@ class JavaPotBakeoffTest {
 	void parseAcceptsCommaSeparatedRequiredStartingFeatures() throws Exception {
 		Path featureDir = tempDir.resolve("features");
 		Files.createDirectories(featureDir);
-		Files.writeString(featureDir.resolve("a.txt"), "header\n");
+		writeString(featureDir.resolve("a.txt"), "header\n");
 
 		JavaPotBakeoff.BakeoffConfig config = JavaPotBakeoff.parse(new String[]{
 			"--direction", "scribeScore,charge1,charge2,charge1, charge3 ",
@@ -67,7 +68,7 @@ class JavaPotBakeoffTest {
 		Path featureDir = tempDir.resolve("features");
 		Files.createDirectories(featureDir);
 		Path input = featureDir.resolve("z.pin");
-		Files.writeString(input, "header\n");
+		writeString(input, "header\n");
 
 		JavaPotBakeoff.BakeoffConfig config = JavaPotBakeoff.parse(new String[]{
 			"--direction", "featA,featB",
@@ -103,7 +104,7 @@ class JavaPotBakeoffTest {
 	void parseRejectsMissingDirectionOrBadDirectoryInputs() throws Exception {
 		Path featureDir = tempDir.resolve("features");
 		Files.createDirectories(featureDir);
-		Files.writeString(featureDir.resolve("a.txt"), "header\n");
+		writeString(featureDir.resolve("a.txt"), "header\n");
 
 		assertThrows(
 			IllegalArgumentException.class,
@@ -127,7 +128,7 @@ class JavaPotBakeoffTest {
 	void parseRejectsInvalidOptionsAndValues() throws Exception {
 		Path featureDir = tempDir.resolve("features");
 		Files.createDirectories(featureDir);
-		Files.writeString(featureDir.resolve("a.pin"), "header\n");
+		writeString(featureDir.resolve("a.pin"), "header\n");
 		Path emptyDir = tempDir.resolve("empty");
 		Files.createDirectories(emptyDir);
 
@@ -431,8 +432,12 @@ class JavaPotBakeoffTest {
 			appendRow(sb, "t" + scan + "b", 1, scan, expMass, targetHigh, targetLow + 0.25, 0.0, addExtraHeader, "PEPTIDE_" + scan + "_B");
 			appendRow(sb, "d" + scan, -1, scan, expMass, decoyHigh, decoyLow, 0.0, addExtraHeader, "DECOY_" + scan);
 		}
-		Files.writeString(file, sb.toString());
+		writeString(file, sb.toString());
 		return file;
+	}
+
+	private static void writeString(Path file, String contents) throws IOException {
+		Files.write(file, contents.getBytes(StandardCharsets.UTF_8));
 	}
 
 	private static void appendRow(

@@ -4,8 +4,11 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.io.BufferedReader;
 import java.io.IOException;
+import java.io.InputStreamReader;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.Arrays;
 
 import org.junit.jupiter.api.Assumptions;
@@ -13,8 +16,8 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 class RuntimeComparisonIntegrationTest {
-	private static final Path MOKAPOT_SOURCE = Path.of("/Users/searle.brian/Documents/projects/mokapot");
-	private static final Path PIN_FILE = Path.of("/Users/searle.brian/Documents/projects/mokapot/data/10k_psms_test.pin");
+	private static final Path MOKAPOT_SOURCE = Paths.get("/Users/searle.brian/Documents/projects/mokapot");
+	private static final Path PIN_FILE = Paths.get("/Users/searle.brian/Documents/projects/mokapot/data/10k_psms_test.pin");
 
 	@TempDir
 	Path tempDir;
@@ -31,14 +34,14 @@ class RuntimeComparisonIntegrationTest {
 		int runs = Integer.getInteger("javapot.runtime.runs", 5);
 		Assumptions.assumeTrue(runs > 0, "javapot.runtime.runs must be > 0");
 
-		Path classpath = Path.of("target/classes").toAbsolutePath();
+		Path classpath = Paths.get("target/classes").toAbsolutePath();
 		String javaBase = "java -cp " + classpath + " org.searlelab.javapot.cli.JavaPotCli " +
 			PIN_FILE + " --max_workers 1 --seed 1";
 		String mokapotBase = "MPLCONFIGDIR=/tmp/mplcache PYTHONPATH=" + MOKAPOT_SOURCE +
 			" conda run -n mokapot110 python -m mokapot.mokapot " + PIN_FILE + " --max_workers 1";
 
 		// Warm-up run for each command.
-		runTimedCommand(javaBase + " --dest_dir " + tempDir.resolve("java_warm"), Path.of("."));
+		runTimedCommand(javaBase + " --dest_dir " + tempDir.resolve("java_warm"), Paths.get("."));
 		runTimedCommand(mokapotBase + " --dest_dir " + tempDir.resolve("mokapot_warm"), MOKAPOT_SOURCE);
 
 		double[] javaTimes = new double[runs];
@@ -47,7 +50,7 @@ class RuntimeComparisonIntegrationTest {
 		for (int i = 0; i < runs; i++) {
 			javaTimes[i] = runTimedCommand(
 				javaBase + " --dest_dir " + tempDir.resolve("java_" + i),
-				Path.of(".")
+				Paths.get(".")
 			);
 			mokapotTimes[i] = runTimedCommand(
 				mokapotBase + " --dest_dir " + tempDir.resolve("mokapot_" + i),
@@ -83,7 +86,7 @@ class RuntimeComparisonIntegrationTest {
 		pb.directory(cwd.toFile());
 		pb.redirectErrorStream(true);
 		Process process = pb.start();
-		try (BufferedReader reader = process.inputReader()) {
+		try (BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream(), StandardCharsets.UTF_8))) {
 			while (reader.readLine() != null) {
 				// discard output in test, only exit code matters
 			}
@@ -91,7 +94,21 @@ class RuntimeComparisonIntegrationTest {
 		return process.waitFor();
 	}
 
-	private record Stats(double meanSeconds, double medianSeconds, double minSeconds, double maxSeconds, double stdSeconds) {
+	private static final class Stats {
+		private final double meanSeconds;
+		private final double medianSeconds;
+		private final double minSeconds;
+		private final double maxSeconds;
+		private final double stdSeconds;
+
+		private Stats(double meanSeconds, double medianSeconds, double minSeconds, double maxSeconds, double stdSeconds) {
+			this.meanSeconds = meanSeconds;
+			this.medianSeconds = medianSeconds;
+			this.minSeconds = minSeconds;
+			this.maxSeconds = maxSeconds;
+			this.stdSeconds = stdSeconds;
+		}
+
 		private static Stats from(double[] values) {
 			double[] sorted = Arrays.copyOf(values, values.length);
 			Arrays.sort(sorted);
@@ -115,6 +132,19 @@ class RuntimeComparisonIntegrationTest {
 			double std = Math.sqrt(variance / sorted.length);
 
 			return new Stats(mean, median, min, max, std);
+		}
+
+		private double meanSeconds() {
+			return meanSeconds;
+		}
+
+		@Override
+		public String toString() {
+			return "Stats[meanSeconds=" + meanSeconds +
+				", medianSeconds=" + medianSeconds +
+				", minSeconds=" + minSeconds +
+				", maxSeconds=" + maxSeconds +
+				", stdSeconds=" + stdSeconds + "]";
 		}
 	}
 }

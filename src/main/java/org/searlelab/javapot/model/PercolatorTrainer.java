@@ -309,12 +309,60 @@ public final class PercolatorTrainer {
 	/**
 	 * StartResult captures the initial best-feature selection used to seed iterative training.
 	 */
-	private record StartResult(String bestFeature, int bestPass, boolean bestDesc, int[] labels) {
+	private static final class StartResult {
+		private final String bestFeature;
+		private final int bestPass;
+		private final boolean bestDesc;
+		private final int[] labels;
+
+		private StartResult(String bestFeature, int bestPass, boolean bestDesc, int[] labels) {
+			this.bestFeature = bestFeature;
+			this.bestPass = bestPass;
+			this.bestDesc = bestDesc;
+			this.labels = labels;
+		}
+
+		private String bestFeature() {
+			return bestFeature;
+		}
+
+		private int bestPass() {
+			return bestPass;
+		}
+
+		private boolean bestDesc() {
+			return bestDesc;
+		}
+
+		private int[] labels() {
+			return labels;
+		}
 	}
 
 	/**
 	 * TrainSubset holds labeled rows prepared for SVM fitting and class-weight search.
 	 */
-	private record TrainSubset(double[][] x, int[] ySigned, int[] y01) {
+	private static final class TrainSubset {
+		private final double[][] x;
+		private final int[] ySigned;
+		private final int[] y01;
+
+		private TrainSubset(double[][] x, int[] ySigned, int[] y01) {
+			this.x = x;
+			this.ySigned = ySigned;
+			this.y01 = y01;
+		}
+
+		private double[][] x() {
+			return x;
+		}
+
+		private int[] ySigned() {
+			return ySigned;
+		}
+
+		private int[] y01() {
+			return y01;
+		}
 	}
 }

@@ -220,12 +220,20 @@ public final class ModelIO {
 			String key = part.substring(0, eq);
 			String value = part.substring(eq + 1);
 			switch (key) {
-				case "fold" -> fold = parseInt(value, "fold", path, line);
-				case "bestFeature" -> bestFeature = value;
-				case "bestFeaturePass" -> bestFeaturePass = parseInt(value, "bestFeaturePass", path, line);
-				case "bestFeatureDescending" -> bestFeatureDescending = Boolean.parseBoolean(value);
-				default -> {
-				}
+				case "fold":
+					fold = parseInt(value, "fold", path, line);
+					break;
+				case "bestFeature":
+					bestFeature = value;
+					break;
+				case "bestFeaturePass":
+					bestFeaturePass = parseInt(value, "bestFeaturePass", path, line);
+					break;
+				case "bestFeatureDescending":
+					bestFeatureDescending = Boolean.parseBoolean(value);
+					break;
+				default:
+					break;
 			}
 		}
 		return new FoldMetadata(fold, bestFeature, bestFeaturePass, bestFeatureDescending);
@@ -302,9 +310,51 @@ public final class ModelIO {
 		return fileName;
 	}
 
-	private record LineRead(String line, int nextIndex) {
+	private static final class LineRead {
+		private final String line;
+		private final int nextIndex;
+
+		private LineRead(String line, int nextIndex) {
+			this.line = line;
+			this.nextIndex = nextIndex;
+		}
+
+		private String line() {
+			return line;
+		}
+
+		private int nextIndex() {
+			return nextIndex;
+		}
 	}
 
-	private record FoldMetadata(Integer fold, String bestFeature, Integer bestFeaturePass, Boolean bestFeatureDescending) {
+	private static final class FoldMetadata {
+		private final Integer fold;
+		private final String bestFeature;
+		private final Integer bestFeaturePass;
+		private final Boolean bestFeatureDescending;
+
+		private FoldMetadata(Integer fold, String bestFeature, Integer bestFeaturePass, Boolean bestFeatureDescending) {
+			this.fold = fold;
+			this.bestFeature = bestFeature;
+			this.bestFeaturePass = bestFeaturePass;
+			this.bestFeatureDescending = bestFeatureDescending;
+		}
+
+		private Integer fold() {
+			return fold;
+		}
+
+		private String bestFeature() {
+			return bestFeature;
+		}
+
+		private Integer bestFeaturePass() {
+			return bestFeaturePass;
+		}
+
+		private Boolean bestFeatureDescending() {
+			return bestFeatureDescending;
+		}
 	}
 }

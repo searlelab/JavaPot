@@ -234,6 +234,27 @@ public final class IsplinePepEstimator {
 		return out;
 	}
 
-	private record BinnedData(double[] x, double[] y, double[] weights) {
+	private static final class BinnedData {
+		private final double[] x;
+		private final double[] y;
+		private final double[] weights;
+
+		private BinnedData(double[] x, double[] y, double[] weights) {
+			this.x = x;
+			this.y = y;
+			this.weights = weights;
+		}
+
+		private double[] x() {
+			return x;
+		}
+
+		private double[] y() {
+			return y;
+		}
+
+		private double[] weights() {
+			return weights;
+		}
 	}
 }

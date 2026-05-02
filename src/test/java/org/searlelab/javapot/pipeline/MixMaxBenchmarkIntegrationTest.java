@@ -6,6 +6,7 @@ import java.io.BufferedReader;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -14,7 +15,7 @@ import org.junit.jupiter.api.io.TempDir;
 import org.searlelab.javapot.cli.JavaPotCli;
 
 class MixMaxBenchmarkIntegrationTest {
-	private static final Path FIXTURE = Path.of("src/test/resources/data/minmax_10k.pin");
+	private static final Path FIXTURE = Paths.get("src/test/resources/data/minmax_10k.pin");
 	private static final double FDR_THRESHOLD = 0.01;
 
 	@TempDir

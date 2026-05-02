@@ -3,6 +3,8 @@ package org.searlelab.javapot.pipeline;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.searlelab.javapot.testutil.TestCompat.filesEqual;
+import static org.searlelab.javapot.testutil.TestCompat.writeString;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -48,10 +50,10 @@ class PsmGroupStratifiedConfidenceIntegrationTest {
 		Path groupedPsm = tempDir.resolve("grouped_out/input.psms.tsv");
 		Path groupedPeptide = tempDir.resolve("grouped_out/input.peptides.tsv");
 
-		assertEquals(-1L, Files.mismatch(baselinePsm, allOnesPsm), "Single-group psm_group should not change PSM output");
-		assertEquals(-1L, Files.mismatch(baselinePeptide, allOnesPeptide), "Single-group psm_group should not change peptide output");
-		assertEquals(-1L, Files.mismatch(baselinePeptide, groupedPeptide), "psm_group should not change peptide output");
-		assertNotEquals(-1L, Files.mismatch(baselinePsm, groupedPsm), "Grouped psm_group should change PSM output");
+		assertTrue(filesEqual(baselinePsm, allOnesPsm), "Single-group psm_group should not change PSM output");
+		assertTrue(filesEqual(baselinePeptide, allOnesPeptide), "Single-group psm_group should not change peptide output");
+		assertTrue(filesEqual(baselinePeptide, groupedPeptide), "psm_group should not change peptide output");
+		assertNotEquals(true, filesEqual(baselinePsm, groupedPsm), "Grouped psm_group should change PSM output");
 
 		Map<String, Double> baselinePsmQ = readQValues(baselinePsm);
 		Map<String, Double> groupedPsmQ = readQValues(groupedPsm);
@@ -156,7 +158,7 @@ class PsmGroupStratifiedConfidenceIntegrationTest {
 		appendPair(sb, includePsmGroup, allOnesPsmGroup, "s105_r1", -1, 105, 505.0, 1.0, "DECOY_F_LOW", "D6", "s105_r2", 1, 4.6, 30.0, "PEP_F", "P6");
 		appendPair(sb, includePsmGroup, allOnesPsmGroup, "s106_r1", 1, 106, 506.0, 1.0, "PEP_G_LOW", "P7", "s106_r2", -1, 1.0, 20.0, "DECOY_G", "D7");
 		appendPair(sb, includePsmGroup, allOnesPsmGroup, "s107_r1", 1, 107, 507.0, 1.0, "PEP_H_LOW", "P8", "s107_r2", -1, 2.4, 10.0, "DECOY_H", "D8");
-		Files.writeString(file, sb.toString());
+		writeString(file, sb.toString());
 	}
 
 	private static void appendPair(

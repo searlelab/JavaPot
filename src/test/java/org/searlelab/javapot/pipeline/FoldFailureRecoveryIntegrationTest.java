@@ -3,6 +3,7 @@ package org.searlelab.javapot.pipeline;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.searlelab.javapot.testutil.TestCompat.writeString;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -72,7 +73,7 @@ class FoldFailureRecoveryIntegrationTest {
 		sb.append("d4\t-1\t5\t500.05\t0.0\tDECOY4\tD4\n");
 		sb.append("d5\t-1\t6\t500.06\t0.0\tDECOY5\tD5\n");
 		sb.append("d6\t-1\t7\t500.07\t0.0\tDECOY6\tD6\n");
-		Files.writeString(file, sb.toString());
+		writeString(file, sb.toString());
 	}
 
 	private static boolean hasFiniteScores(Iterable<JavaPotPeptide> rows) {

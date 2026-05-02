@@ -61,9 +61,31 @@ public final class PavaPepEstimator {
 		return value;
 	}
 
-	private record Block(double sum, int count, double avg) {
-		Block(double sum, int count) {
+	private static final class Block {
+		private final double sum;
+		private final int count;
+		private final double avg;
+
+		private Block(double sum, int count) {
 			this(sum, count, sum / count);
+		}
+
+		private Block(double sum, int count, double avg) {
+			this.sum = sum;
+			this.count = count;
+			this.avg = avg;
+		}
+
+		private double sum() {
+			return sum;
+		}
+
+		private int count() {
+			return count;
+		}
+
+		private double avg() {
+			return avg;
 		}
 	}
 }

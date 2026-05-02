@@ -31,7 +31,7 @@ public final class PinFileParser {
 			ColumnGroups initial = ColumnGroups.inferFromColnames(parsed.headers());
 			List<String> filteredFeatures = dropMissingFeatureColumns(parsed, initial.featureColumns());
 			ColumnGroups finalGroups = initial.withFeatureColumns(filteredFeatures);
-			String[][] rows = parsed.rows().toArray(String[][]::new);
+			String[][] rows = parsed.rows().toArray(new String[parsed.rows().size()][]);
 			return new PsmDataset(finalGroups, parsed.headers(), rows);
 		} catch (IOException e) {
 			throw new RuntimeException("Failed to parse PIN file: " + pinFile, e);
@@ -180,6 +180,21 @@ public final class PinFileParser {
 	/**
 	 * ParsedFile stores raw header and row values before column-role inference.
 	 */
-	private record ParsedFile(List<String> headers, List<String[]> rows) {
+	private static final class ParsedFile {
+		private final List<String> headers;
+		private final List<String[]> rows;
+
+		private ParsedFile(List<String> headers, List<String[]> rows) {
+			this.headers = headers;
+			this.rows = rows;
+		}
+
+		private List<String> headers() {
+			return headers;
+		}
+
+		private List<String[]> rows() {
+			return rows;
+		}
 	}
 }

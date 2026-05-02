@@ -188,10 +188,35 @@ public final class MixMaxQValues {
 	/**
 	 * Result carries q-values and pi0 estimated for the supplied score vector.
 	 */
-	public record Result(double[] qValues, double pi0) {
+	public static final class Result {
+		private final double[] qValues;
+		private final double pi0;
+
+		public Result(double[] qValues, double pi0) {
+			this.qValues = qValues;
+			this.pi0 = pi0;
+		}
+
+		public double[] qValues() {
+			return qValues;
+		}
+
+		public double pi0() {
+			return pi0;
+		}
 	}
 
-	private record Counts(double[] hWLeZ, double[] hZLeZ, int size) {
+	private static final class Counts {
+		private final double[] hWLeZ;
+		private final double[] hZLeZ;
+		private final int size;
+
+		private Counts(double[] hWLeZ, double[] hZLeZ, int size) {
+			this.hWLeZ = hWLeZ;
+			this.hZLeZ = hZLeZ;
+			this.size = size;
+		}
+
 		static Counts empty() {
 			return new Counts(new double[0], new double[0], 0);
 		}
@@ -202,6 +227,10 @@ public final class MixMaxQValues {
 
 		double zAt(int idx) {
 			return hZLeZ[idx];
+		}
+
+		int size() {
+			return size;
 		}
 	}
 }

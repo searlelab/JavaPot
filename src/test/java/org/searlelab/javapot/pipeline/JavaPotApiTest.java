@@ -3,6 +3,7 @@ package org.searlelab.javapot.pipeline;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.searlelab.javapot.testutil.TestCompat.writeString;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -138,7 +139,7 @@ class JavaPotApiTest {
 			sb.append("d").append(scan).append("\t-1\t").append(scan).append('\t').append(expMass).append('\t')
 				.append(base - 3.0).append("\tDECOY_").append(scan).append("\tPROT_D\n");
 		}
-		Files.writeString(file, sb.toString());
+		writeString(file, sb.toString());
 		return file;
 	}
 }

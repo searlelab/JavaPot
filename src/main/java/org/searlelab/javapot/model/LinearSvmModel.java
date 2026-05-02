@@ -1,6 +1,5 @@
 package org.searlelab.javapot.model;
 
-import java.io.Serial;
 import java.io.Serializable;
 import java.util.Arrays;
 
@@ -9,7 +8,6 @@ import java.util.Arrays;
  * It supports fitting with class-weighted squared hinge loss and scoring new feature matrices.
  */
 public final class LinearSvmModel implements Serializable {
-	@Serial
 	private static final long serialVersionUID = 1L;
 
 	private final double[] weights;

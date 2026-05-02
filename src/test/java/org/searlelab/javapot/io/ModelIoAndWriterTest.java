@@ -5,8 +5,10 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.List;
 
 import org.junit.jupiter.api.Test;
@@ -50,7 +52,7 @@ class ModelIoAndWriterTest {
 	@Test
 	void loadModelsRejectsInvalidTextShape() throws Exception {
 		Path bad = tmp.resolve("bad.model.txt");
-		Files.writeString(bad, "f1\tf2\tm0\n1\t2\t3\n");
+		Files.write(bad, "f1\tf2\tm0\n1\t2\t3\n".getBytes(StandardCharsets.UTF_8));
 		assertThrows(RuntimeException.class, () -> ModelIO.loadModels(bad));
 	}
 
@@ -104,14 +106,16 @@ class ModelIoAndWriterTest {
 	@Test
 	void loadModelsSkipsPercolatorCommentPreamble() throws Exception {
 		Path file = tmp.resolve("commented.model.txt");
-		Files.writeString(
+		Files.write(
 			file,
-			"# This file contains the weights from each cross validation bin from percolator training\n" +
+			(
+				"# This file contains the weights from each cross validation bin from percolator training\n" +
 				"# First line is the feature names, followed by normalized weights, and the raw weights of bin 1\n" +
 				"# This is repeated for the other bins\n" +
 				"f1\tm0\n" +
 				"1.0\t0.5\n" +
 				"0.2\t-1.0\n"
+			).getBytes(StandardCharsets.UTF_8)
 		);
 		List<PercolatorFoldModel> loaded = ModelIO.loadModels(file);
 		assertEquals(1, loaded.size());
@@ -135,20 +139,20 @@ class ModelIoAndWriterTest {
 	@Test
 	void defaultModelPathDropsPinLikeExtensions() {
 		assertEquals(
-			Path.of("/tmp/out/sample.model.tsv"),
-			ModelIO.defaultModelPath(Path.of("sample.pin"), Path.of("/tmp/out"))
+			Paths.get("/tmp/out/sample.model.tsv"),
+			ModelIO.defaultModelPath(Paths.get("sample.pin"), Paths.get("/tmp/out"))
 		);
 		assertEquals(
-			Path.of("/tmp/out/sample.model.tsv"),
-			ModelIO.defaultModelPath(Path.of("sample.tsv"), Path.of("/tmp/out"))
+			Paths.get("/tmp/out/sample.model.tsv"),
+			ModelIO.defaultModelPath(Paths.get("sample.tsv"), Paths.get("/tmp/out"))
 		);
 		assertEquals(
-			Path.of("/tmp/out/sample.model.tsv"),
-			ModelIO.defaultModelPath(Path.of("sample.txt"), Path.of("/tmp/out"))
+			Paths.get("/tmp/out/sample.model.tsv"),
+			ModelIO.defaultModelPath(Paths.get("sample.txt"), Paths.get("/tmp/out"))
 		);
 		assertEquals(
-			Path.of("/tmp/out/sample.raw.model.tsv"),
-			ModelIO.defaultModelPath(Path.of("sample.raw"), Path.of("/tmp/out"))
+			Paths.get("/tmp/out/sample.raw.model.tsv"),
+			ModelIO.defaultModelPath(Paths.get("sample.raw"), Paths.get("/tmp/out"))
 		);
 	}
 }

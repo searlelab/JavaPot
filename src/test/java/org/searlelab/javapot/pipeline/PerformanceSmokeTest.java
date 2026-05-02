@@ -6,6 +6,7 @@ import java.io.BufferedReader;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.Paths;
 
 import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.Test;
@@ -13,7 +14,7 @@ import org.junit.jupiter.api.io.TempDir;
 import org.searlelab.javapot.cli.JavaPotCli;
 
 class PerformanceSmokeTest {
-	private static final Path PIN_FILE = Path.of("/Users/searle.brian/Documents/projects/mokapot/data/10k_psms_test.pin");
+	private static final Path PIN_FILE = Paths.get("/Users/searle.brian/Documents/projects/mokapot/data/10k_psms_test.pin");
 	private static final long MAX_RUNTIME_MS = Long.getLong("javapot.smoke.max_runtime_ms", 30_000L);
 
 	@TempDir

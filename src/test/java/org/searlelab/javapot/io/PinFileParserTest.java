@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 
@@ -20,7 +21,7 @@ class PinFileParserTest {
 	@Test
 	void parsesBasicPin() throws IOException {
 		Path file = tmp.resolve("basic.pin");
-		Files.writeString(file, String.join("\n",
+		writeString(file, String.join("\n",
 			"SpecId\tLabel\tScanNr\tExpMass\tfeatA\tfeatB\tPeptide\tProteins",
 			"a\t1\t10\t100.0\t1.0\t2.0\tPEP\tP1",
 			"b\t-1\t11\t101.0\t3.0\t4.0\tPEQ\tP2"
@@ -36,7 +37,7 @@ class PinFileParserTest {
 	@Test
 	void parsesAlternateSequenceHeader() throws IOException {
 		Path file = tmp.resolve("sequence.features.txt");
-		Files.writeString(file, String.join("\n",
+		writeString(file, String.join("\n",
 			"id\tLabel\tScanNr\tExpMass\tfeatA\tsequence\tProteins",
 			"a\t1\t10\t100.0\t1.0\tPEP\tP1",
 			"b\t-1\t11\t101.0\t2.0\tPEQ\tP2"
@@ -52,7 +53,7 @@ class PinFileParserTest {
 	@Test
 	void parsesTraditionalPinWithRaggedProteins() throws IOException {
 		Path file = tmp.resolve("traditional.pin");
-		Files.writeString(file, String.join("\n",
+		writeString(file, String.join("\n",
 			"SpecId\tLabel\tScanNr\tfeatA\tPeptide\tProteins",
 			"a\t1\t10\t1.0\tPEP\tP1\tP2\tP3",
 			"b\t-1\t11\t2.0\tPEQ\tP4"
@@ -64,7 +65,7 @@ class PinFileParserTest {
 	@Test
 	void dropsFeaturesWithMissingValues() throws IOException {
 		Path file = tmp.resolve("missing.pin");
-		Files.writeString(file, String.join("\n",
+		writeString(file, String.join("\n",
 			"SpecId\tLabel\tScanNr\tExpMass\tfeatA\tfeatB\tPeptide\tProteins",
 			"a\t1\t10\t100.0\t1.0\t\tPEP\tP1",
 			"b\t-1\t11\t101.0\t2.0\t3.0\tPEQ\tP2"
@@ -76,7 +77,7 @@ class PinFileParserTest {
 	@Test
 	void parsesPsmGroupAsOptionalMetadata() throws IOException {
 		Path file = tmp.resolve("psm_group.pin");
-		Files.writeString(file, String.join("\n",
+		writeString(file, String.join("\n",
 			"SpecId\tLabel\tScanNr\tpsm_group\tExpMass\tfeatA\tPeptide\tProteins",
 			"a\t1\t10\t1.0\t100.0\t1.0\tPEP\tP1",
 			"b\t-1\t11\t4.6\t101.0\t2.0\tPEQ\tP2"
@@ -91,7 +92,7 @@ class PinFileParserTest {
 	@Test
 	void skipsCommentAndDefaultDirectionLines() throws IOException {
 		Path file = tmp.resolve("comments.pin");
-		Files.writeString(file, String.join("\n",
+		writeString(file, String.join("\n",
 			"# header comment",
 			"DefaultDirection\tfeatA",
 			"SpecId\tLabel\tScanNr\tExpMass\tfeatA\tPeptide\tProteins",
@@ -106,15 +107,15 @@ class PinFileParserTest {
 	@Test
 	void rejectsEmptyAndMalformedPinFiles() throws IOException {
 		Path empty = tmp.resolve("empty.pin");
-		Files.writeString(empty, "");
+		writeString(empty, "");
 		assertThrows(IllegalArgumentException.class, () -> PinFileParser.read(empty));
 
 		Path singleCol = tmp.resolve("singlecol.pin");
-		Files.writeString(singleCol, "not_a_tsv_header\nvalue");
+		writeString(singleCol, "not_a_tsv_header\nvalue");
 		assertThrows(IllegalArgumentException.class, () -> PinFileParser.read(singleCol));
 
 		Path noRows = tmp.resolve("norows.pin");
-		Files.writeString(noRows, "SpecId\tLabel\tScanNr\tExpMass\tfeatA\tPeptide\tProteins\n");
+		writeString(noRows, "SpecId\tLabel\tScanNr\tExpMass\tfeatA\tPeptide\tProteins\n");
 		assertThrows(IllegalArgumentException.class, () -> PinFileParser.read(noRows));
 	}
 
@@ -130,14 +131,14 @@ class PinFileParserTest {
 	@Test
 	void rejectsRaggedNonTraditionalAndShortRows() throws IOException {
 		Path ragged = tmp.resolve("ragged.pin");
-		Files.writeString(ragged, String.join("\n",
+		writeString(ragged, String.join("\n",
 			"SpecId\tLabel\tScanNr\tExpMass\tfeatA\tPeptide\tXProteins",
 			"a\t1\t10\t500.0\t1.0\tPEP\tP1\tEXTRA"
 		));
 		assertThrows(IllegalArgumentException.class, () -> PinFileParser.read(ragged));
 
 		Path shortRow = tmp.resolve("short.pin");
-		Files.writeString(shortRow, String.join("\n",
+		writeString(shortRow, String.join("\n",
 			"SpecId\tLabel\tScanNr\tExpMass\tfeatA\tPeptide\tProteins",
 			"a\t1\t10\t500.0\t1.0\tPEP"
 		));
@@ -147,7 +148,7 @@ class PinFileParserTest {
 	@Test
 	void rejectsWhenAllFeaturesAreDropped() throws IOException {
 		Path file = tmp.resolve("allmissing.pin");
-		Files.writeString(file, String.join("\n",
+		writeString(file, String.join("\n",
 			"SpecId\tLabel\tScanNr\tExpMass\tfeatA\tfeatB\tPeptide\tProteins",
 			"a\t1\t10\t500.0\tNA\tnull\tPEP\tP1",
 			"b\t-1\t11\t501.0\tNaN\t \tPEQ\tP2"
@@ -168,11 +169,15 @@ class PinFileParserTest {
 
 	private Path writePsmGroupFile(String name, String psmGroupValue) throws IOException {
 		Path file = tmp.resolve(name);
-		Files.writeString(file, String.join("\n",
+		writeString(file, String.join("\n",
 			"SpecId\tLabel\tScanNr\tpsm_group\tExpMass\tfeatA\tPeptide\tProteins",
 			"a\t1\t10\t" + psmGroupValue + "\t100.0\t1.0\tPEP\tP1",
 			"b\t-1\t11\t1\t101.0\t2.0\tPEQ\tP2"
 		));
 		return file;
+	}
+
+	private static void writeString(Path file, String contents) throws IOException {
+		Files.write(file, contents.getBytes(StandardCharsets.UTF_8));
 	}
 }

@@ -1,6 +1,7 @@
 package org.searlelab.javapot.pipeline;
 
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.searlelab.javapot.testutil.TestCompat.writeString;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -66,7 +67,7 @@ class SparseDecoyFoldIntegrationTest {
 		sb.append("t4\t1\t4\t500.4\t5.5\tPEP4\tP1\n");
 		sb.append("t5\t1\t5\t500.5\t5.0\tPEP5\tP1\n");
 		sb.append("d1\t-1\t6\t500.6\t1.0\tDECOY\tD1\n");
-		Files.writeString(file, sb.toString());
+		writeString(file, sb.toString());
 	}
 
 	private static boolean hasFiniteQAndPep(Path file) throws IOException {

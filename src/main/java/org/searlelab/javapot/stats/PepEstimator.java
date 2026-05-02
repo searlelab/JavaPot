@@ -276,12 +276,42 @@ public final class PepEstimator {
 		return value;
 	}
 
-	private record RawPepResult(double[] pep, boolean usedFallback) {
+	private static final class RawPepResult {
+		private final double[] pep;
+		private final boolean usedFallback;
+
+		private RawPepResult(double[] pep, boolean usedFallback) {
+			this.pep = pep;
+			this.usedFallback = usedFallback;
+		}
+
+		private double[] pep() {
+			return pep;
+		}
+
+		private boolean usedFallback() {
+			return usedFallback;
+		}
 	}
 
 	/**
 	 * Result stores PEP values and whether fallback from I-spline to PAVA occurred.
 	 */
-	public record Result(double[] pepValues, boolean usedFallback) {
+	public static final class Result {
+		private final double[] pepValues;
+		private final boolean usedFallback;
+
+		public Result(double[] pepValues, boolean usedFallback) {
+			this.pepValues = pepValues;
+			this.usedFallback = usedFallback;
+		}
+
+		public double[] pepValues() {
+			return pepValues;
+		}
+
+		public boolean usedFallback() {
+			return usedFallback;
+		}
 	}
 }
