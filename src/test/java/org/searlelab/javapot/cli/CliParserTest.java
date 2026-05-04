@@ -37,6 +37,7 @@ class CliParserTest {
 		assertNull(cfg.saveModelFile());
 		assertNull(cfg.loadModelFile());
 		assertFalse(cfg.mixmax());
+		assertFalse(cfg.groupedCrossfit());
 	}
 
 	@Test
@@ -122,6 +123,7 @@ class CliParserTest {
 		assertEquals(5, cfg.folds());
 		assertEquals(4, cfg.maxRetries());
 		assertTrue(cfg.mixmax());
+		assertFalse(cfg.groupedCrossfit());
 	}
 
 	@Test
@@ -179,6 +181,12 @@ class CliParserTest {
 	}
 
 	@Test
+	void parsesGroupedCrossfit() {
+		JavaPotOptions cfg = CliParser.parse(new String[]{"input.pin", "--grouped_crossfit"});
+		assertTrue(cfg.groupedCrossfit());
+	}
+
+	@Test
 	void rejectsMissingOrInvalidValues() {
 		assertThrows(IllegalArgumentException.class, () -> CliParser.parse(new String[]{"input.pin", "--max_iter"}));
 		assertThrows(IllegalArgumentException.class, () -> CliParser.parse(new String[]{"input.pin", "--max_workers", "0"}));
@@ -219,6 +227,7 @@ class CliParserTest {
 		assertTrue(help.contains("--output_format"));
 		assertTrue(help.contains("--mixmax"));
 		assertTrue(help.contains("--post-processing-mix-max"));
+		assertTrue(help.contains("--grouped_crossfit"));
 		assertTrue(help.contains("--quiet"));
 		assertTrue(help.contains("--write_model_files"));
 		assertTrue(help.contains("--max_retries"));

@@ -48,6 +48,7 @@ class FoldFailureRecoveryIntegrationTest {
 			null,
 			3,
 			1,
+			false,
 			false
 		);
 		JavaPotRunResult result = JavaPotRunner.runForResult(config);

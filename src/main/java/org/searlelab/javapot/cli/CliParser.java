@@ -47,6 +47,7 @@ public final class CliParser {
 		int folds = JavaPotOptions.DEFAULT_FOLDS;
 		int maxRetries = JavaPotOptions.DEFAULT_MAX_RETRIES;
 		boolean mixmax = false;
+		boolean groupedCrossfit = false;
 		List<String> positional = new ArrayList<String>();
 
 		for (int i = 0; i < args.length; i++) {
@@ -114,6 +115,9 @@ public final class CliParser {
 				case "--mixmax":
 				case "--post-processing-mix-max":
 					mixmax = true;
+					break;
+				case "--grouped_crossfit":
+					groupedCrossfit = true;
 					break;
 				case "--load_models":
 					loadModelFile = assignSinglePath(loadModelFile, requireValue(args, ++i, arg), "--load_models");
@@ -196,7 +200,8 @@ public final class CliParser {
 			loadModelFile,
 			folds,
 			maxRetries,
-			mixmax
+			mixmax,
+			groupedCrossfit
 		);
 	}
 
@@ -230,6 +235,8 @@ public final class CliParser {
 			"  --write_decoy_files   Write decoy peptide/PSM forensic output files.",
 			"  --mixmax, --post-processing-mix-max",
 			"                        Use Percolator mix-max post-processing for q-value and PEP assignment.",
+			"  --grouped_crossfit",
+			"                        Use entity-grouped k-fold cross-fitting with pooled out-of-fold scores and no validation-label score calibration. Does not require extra decoys or entrapment.",
 			"  --results-peptides PATH",
 			"                        Write target peptide output to PATH (relative to current working directory).",
 			"  --decoy-results-peptides PATH",

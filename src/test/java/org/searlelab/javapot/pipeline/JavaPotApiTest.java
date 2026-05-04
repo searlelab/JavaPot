@@ -56,6 +56,7 @@ class JavaPotApiTest {
 		assertTrue(options.decoyResultsPsms() == null);
 		assertTrue(options.loadModelFile().equals(loadModelFile));
 		assertTrue(options.mixmax());
+		assertFalse(options.groupedCrossfit());
 	}
 
 	@Test

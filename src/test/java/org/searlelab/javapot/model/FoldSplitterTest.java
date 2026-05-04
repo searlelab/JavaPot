@@ -131,4 +131,107 @@ class FoldSplitterTest {
 			assertTrue(decoys > 0, "Fold " + fi + " has no decoys");
 		}
 	}
+
+	@Test
+	void splitGroupedKeepsDuplicatePrecursorsTogether() {
+		PsmDataset ds = datasetWithEntityColumns();
+
+		int[][] folds = FoldSplitter.splitGrouped(ds, 3, new DeterministicRandom(5), "grouped.pin");
+
+		assertRowsShareFold(folds, 0, 1);
+	}
+
+	@Test
+	void splitGroupedPrefersPrecursorOverModifiedPeptideAndPeptide() {
+		PsmDataset ds = datasetWithEntityColumns();
+
+		int[][] folds = FoldSplitter.splitGrouped(ds, 3, new DeterministicRandom(5), "grouped.pin");
+
+		assertRowsShareFold(folds, 0, 1);
+	}
+
+	@Test
+	void splitGroupedFallsBackToModifiedPeptideThenPeptide() {
+		PsmDataset modified = datasetWithoutPrecursor();
+		PsmDataset peptide = datasetWithoutPrecursorOrModifiedPeptide();
+
+		int[][] modifiedFolds = FoldSplitter.splitGrouped(modified, 3, new DeterministicRandom(5), "modified.pin");
+		int[][] peptideFolds = FoldSplitter.splitGrouped(peptide, 3, new DeterministicRandom(5), "peptide.pin");
+
+		assertRowsShareFold(modifiedFolds, 0, 1);
+		assertRowsShareFold(peptideFolds, 0, 1);
+	}
+
+	private static void assertRowsShareFold(int[][] folds, int leftRow, int rightRow) {
+		int leftFold = findFold(folds, leftRow);
+		int rightFold = findFold(folds, rightRow);
+		assertEquals(leftFold, rightFold);
+	}
+
+	private static int findFold(int[][] folds, int row) {
+		for (int fi = 0; fi < folds.length; fi++) {
+			for (int idx : folds[fi]) {
+				if (idx == row) {
+					return fi;
+				}
+			}
+		}
+		throw new AssertionError("Row not found in folds: " + row);
+	}
+
+	private static PsmDataset datasetWithEntityColumns() {
+		List<String> headers = List.of(
+			"SpecId", "Label", "ScanNr", "ExpMass", "feat", "Peptide", "Proteins", "modifiedPeptide", "precursor"
+		);
+		String[][] rows = new String[][]{
+			{"a", "1", "100", "500.0", "1.0", "PEP_A", "Prot", "MOD_A", "PREC_SHARED"},
+			{"b", "-1", "101", "500.1", "0.0", "PEP_B", "Prot", "MOD_B", "PREC_SHARED"},
+			{"c", "1", "102", "500.2", "2.0", "PEP_C", "Prot", "MOD_C", "PREC_C"},
+			{"d", "-1", "103", "500.3", "3.0", "PEP_D", "Prot", "MOD_D", "PREC_D"},
+			{"e", "1", "104", "500.4", "4.0", "PEP_E", "Prot", "MOD_E", "PREC_E"},
+			{"f", "-1", "105", "500.5", "5.0", "PEP_F", "Prot", "MOD_F", "PREC_F"}
+		};
+		return dataset(headers, rows, List.of("modifiedPeptide", "precursor"));
+	}
+
+	private static PsmDataset datasetWithoutPrecursor() {
+		List<String> headers = List.of(
+			"SpecId", "Label", "ScanNr", "ExpMass", "feat", "Peptide", "Proteins", "modifiedPeptide"
+		);
+		String[][] rows = new String[][]{
+			{"a", "1", "100", "500.0", "1.0", "PEP_A", "Prot", "MOD_SHARED"},
+			{"b", "-1", "101", "500.1", "0.0", "PEP_B", "Prot", "MOD_SHARED"},
+			{"c", "1", "102", "500.2", "2.0", "PEP_C", "Prot", "MOD_C"},
+			{"d", "-1", "103", "500.3", "3.0", "PEP_D", "Prot", "MOD_D"},
+			{"e", "1", "104", "500.4", "4.0", "PEP_E", "Prot", "MOD_E"},
+			{"f", "-1", "105", "500.5", "5.0", "PEP_F", "Prot", "MOD_F"}
+		};
+		return dataset(headers, rows, List.of("modifiedPeptide"));
+	}
+
+	private static PsmDataset datasetWithoutPrecursorOrModifiedPeptide() {
+		List<String> headers = List.of("SpecId", "Label", "ScanNr", "ExpMass", "feat", "Peptide", "Proteins");
+		String[][] rows = new String[][]{
+			{"a", "1", "100", "500.0", "1.0", "PEP_SHARED", "Prot"},
+			{"b", "-1", "101", "500.1", "0.0", "PEP_SHARED", "Prot"},
+			{"c", "1", "102", "500.2", "2.0", "PEP_C", "Prot"},
+			{"d", "-1", "103", "500.3", "3.0", "PEP_D", "Prot"},
+			{"e", "1", "104", "500.4", "4.0", "PEP_E", "Prot"},
+			{"f", "-1", "105", "500.5", "5.0", "PEP_F", "Prot"}
+		};
+		return dataset(headers, rows, List.of());
+	}
+
+	private static PsmDataset dataset(List<String> headers, String[][] rows, List<String> extraColumns) {
+		ColumnGroups groups = new ColumnGroups(
+			headers,
+			"Label",
+			"Peptide",
+			List.of("ScanNr", "ExpMass"),
+			List.of("feat"),
+			extraColumns,
+			new OptionalColumns("SpecId", null, "ScanNr", null, null, "ExpMass", null, null, "Proteins")
+		);
+		return new PsmDataset(groups, headers, rows);
+	}
 }

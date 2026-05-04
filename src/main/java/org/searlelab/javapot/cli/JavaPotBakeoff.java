@@ -366,7 +366,8 @@ public final class JavaPotBakeoff {
 				null,
 				config.folds(),
 				config.maxRetries(),
-				config.mixmax()
+				config.mixmax(),
+				false
 			);
 			JavaPotRunResult result = JavaPotApi.run(options);
 			total += countAcceptedTargetPeptides(result.peptides(), config.testFdr());

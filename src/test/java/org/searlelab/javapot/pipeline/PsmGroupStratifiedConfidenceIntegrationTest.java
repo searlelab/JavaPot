@@ -103,6 +103,7 @@ class PsmGroupStratifiedConfidenceIntegrationTest {
 			modelFile,
 			3,
 			1,
+			false,
 			false
 		);
 		return JavaPotRunner.runForResult(config);

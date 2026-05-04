@@ -55,6 +55,8 @@ Options:
   --write_decoy_files   Write decoy peptide/PSM forensic output files.
   --mixmax, --post-processing-mix-max
                         Use Percolator mix-max post-processing for q-value and PEP assignment.
+  --grouped_crossfit
+                        Use entity-grouped k-fold cross-fitting with pooled out-of-fold scores and no validation-label score calibration. Does not require extra decoys or entrapment.
   --results-peptides PATH
                         Write target peptide output to PATH (relative to current working directory).
   --decoy-results-peptides PATH

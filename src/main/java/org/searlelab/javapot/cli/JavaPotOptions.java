@@ -37,6 +37,7 @@ public final class JavaPotOptions {
 	private final int folds;
 	private final int maxRetries;
 	private final boolean mixmax;
+	private final boolean groupedCrossfit;
 
 	public JavaPotOptions(
 		Path pinFile,
@@ -60,7 +61,8 @@ public final class JavaPotOptions {
 		Path loadModelFile,
 		int folds,
 		int maxRetries,
-		boolean mixmax
+		boolean mixmax,
+		boolean groupedCrossfit
 	) {
 		this.pinFile = pinFile;
 		this.destDir = destDir;
@@ -84,6 +86,7 @@ public final class JavaPotOptions {
 		this.folds = folds;
 		this.maxRetries = maxRetries;
 		this.mixmax = mixmax;
+		this.groupedCrossfit = groupedCrossfit;
 	}
 
 	public JavaPotOptions(
@@ -119,7 +122,8 @@ public final class JavaPotOptions {
 			loadModelFile,
 			DEFAULT_FOLDS,
 			DEFAULT_MAX_RETRIES,
-			mixmax
+			mixmax,
+			false
 		);
 	}
 
@@ -232,6 +236,10 @@ public final class JavaPotOptions {
 		return mixmax;
 	}
 
+	public boolean groupedCrossfit() {
+		return groupedCrossfit;
+	}
+
 	@Override
 	public boolean equals(Object obj) {
 		if (this == obj) {
@@ -252,6 +260,7 @@ public final class JavaPotOptions {
 			&& folds == other.folds
 			&& maxRetries == other.maxRetries
 			&& mixmax == other.mixmax
+			&& groupedCrossfit == other.groupedCrossfit
 			&& Objects.equals(pinFile, other.pinFile)
 			&& Objects.equals(destDir, other.destDir)
 			&& outputFormat == other.outputFormat
@@ -289,7 +298,8 @@ public final class JavaPotOptions {
 			loadModelFile,
 			folds,
 			maxRetries,
-			mixmax
+			mixmax,
+			groupedCrossfit
 		);
 	}
 
@@ -317,7 +327,8 @@ public final class JavaPotOptions {
 			"loadModelFile=" + loadModelFile + ", " +
 			"folds=" + folds + ", " +
 			"maxRetries=" + maxRetries + ", " +
-			"mixmax=" + mixmax +
+			"mixmax=" + mixmax + ", " +
+			"groupedCrossfit=" + groupedCrossfit +
 			"]";
 	}
 }

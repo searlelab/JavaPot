@@ -59,6 +59,88 @@ public final class FoldSplitter {
 		return out;
 	}
 
+	/**
+	 * Splits rows into folds by the strongest available peptide/precursor entity key.
+	 */
+	public static int[][] splitGrouped(PsmDataset dataset, int folds, DeterministicRandom rng, String inputFileName) {
+		if (folds < 2) {
+			throw new IllegalArgumentException("folds must be >= 2");
+		}
+		if (dataset.size() == 0) {
+			return new int[folds][0];
+		}
+
+		String entityColumn = selectGroupedColumn(dataset);
+		GroupBuildResult build = entityColumn == null
+			? buildGroups(dataset, normalizeInputFileId(inputFileName))
+			: buildColumnGroups(dataset, entityColumn);
+		Group[] groups = build.groups();
+		int[] groupOrder = orderGroups(groups);
+
+		int[] remainingCapacity = initialFoldCapacities(dataset.size(), folds);
+		int[] groupToFold = assignGroups(groupOrder, groups, remainingCapacity, folds, rng);
+
+		repairLabelEmptyFolds(groupToFold, groups, folds);
+
+		int[][] out = toFoldRows(groupToFold, groups, folds);
+		for (int[] foldRows : out) {
+			rng.shuffle(foldRows);
+		}
+		return out;
+	}
+
+	private static String selectGroupedColumn(PsmDataset dataset) {
+		String precursor = findColumnIgnoreCase(dataset, "precursor");
+		if (precursor != null) {
+			return precursor;
+		}
+		String modifiedPeptide = findColumnIgnoreCase(dataset, "modifiedpeptide");
+		if (modifiedPeptide != null) {
+			return modifiedPeptide;
+		}
+		String peptide = dataset.columnGroups().peptideColumn();
+		if (peptide != null) {
+			return peptide;
+		}
+		return findColumnIgnoreCase(dataset, "peptidegroup");
+	}
+
+	private static String findColumnIgnoreCase(PsmDataset dataset, String name) {
+		for (String header : dataset.headers()) {
+			if (header.equalsIgnoreCase(name)) {
+				return header;
+			}
+		}
+		return null;
+	}
+
+	private static GroupBuildResult buildColumnGroups(PsmDataset dataset, String column) {
+		Map<String, MutableGroup> groups = new LinkedHashMap<>();
+		CRC32 crc32 = new CRC32();
+		for (int row = 0; row < dataset.size(); row++) {
+			String value = dataset.valueAt(row, column);
+			String key = column + "\u0001" + (value == null ? "" : value);
+			MutableGroup mutable = groups.get(key);
+			if (mutable == null) {
+				long hash = hashKey(key, crc32);
+				mutable = new MutableGroup(key, hash);
+				groups.put(key, mutable);
+			}
+			mutable.rows.add(row);
+			if (dataset.targetAt(row)) {
+				mutable.targets++;
+			} else {
+				mutable.decoys++;
+			}
+		}
+		Group[] out = new Group[groups.size()];
+		int i = 0;
+		for (MutableGroup mutable : groups.values()) {
+			out[i++] = mutable.freeze();
+		}
+		return new GroupBuildResult(out);
+	}
+
 	private static GroupBuildResult buildGroups(PsmDataset dataset, String inputFileId) {
 		ColumnGroups columns = dataset.columnGroups();
 		String scanColumn = columns.optionalColumns().scan();

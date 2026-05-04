@@ -81,19 +81,40 @@ public final class JavaPotRunner {
 		double[] finalScores;
 		if (config.loadModelFile() != null) {
 			DeterministicRandom rng = new DeterministicRandom(config.seed());
-			int[][] folds = FoldSplitter.split(dataset, config.folds(), rng, config.pinFile().getFileName().toString());
+			int[][] folds = splitFolds(dataset, config, rng);
 			models = ModelIO.loadModels(config.loadModelFile());
 			validateLoadedModelFolds(models, config.folds());
-			double[] scores = predictScores(dataset, folds, models, config.testFdr());
-			finalScores = maybeFallbackToBestFeature(
-				dataset,
-				models,
-				scores,
-				config.testFdr(),
-				confidenceMode,
-				config.seed(),
-				config.quiet()
-			);
+			double[] scores = config.groupedCrossfit()
+				? predictRawScores(dataset, folds, models)
+				: predictScores(dataset, folds, models, config.testFdr());
+			finalScores = config.groupedCrossfit()
+				? scores
+				: maybeFallbackToBestFeature(
+					dataset,
+					models,
+					scores,
+					config.testFdr(),
+					confidenceMode,
+					config.seed(),
+					config.quiet()
+				);
+		} else if (config.groupedCrossfit()) {
+			DeterministicRandom rng = new DeterministicRandom(config.seed());
+			int[][] folds = splitFolds(dataset, config, rng);
+			try {
+				models = trainModels(dataset, folds, config, rng);
+				finalScores = predictRawScores(dataset, folds, models);
+			} catch (RuntimeException e) {
+				if (!isNoTrainingPassFailure(e)) {
+					throw e;
+				}
+				log(
+					config,
+					"Grouped crossfit fold training failed due to no training labels; forcing q-value/PEP to 1.0."
+				);
+				forceNoDetections = true;
+				finalScores = scoreByFeatureDirection(dataset, dataset.featureNames()[0], true);
+			}
 		} else {
 			FeatureStartChoice startChoice = chooseStartFeature(
 				dataset,
@@ -112,7 +133,7 @@ public final class JavaPotRunner {
 				finalScores = scoreByFeatureDirection(dataset, startChoice.featureName(), startChoice.descending());
 			} else {
 				DeterministicRandom rng = new DeterministicRandom(config.seed());
-				int[][] folds = FoldSplitter.split(dataset, config.folds(), rng, config.pinFile().getFileName().toString());
+				int[][] folds = splitFolds(dataset, config, rng);
 				try {
 					models = trainModels(dataset, folds, config, rng);
 					double[] scores = predictScores(dataset, folds, models, config.testFdr());
@@ -172,6 +193,13 @@ public final class JavaPotRunner {
 			tables.peptidePi0(),
 			new ArrayList<>(writtenPaths)
 		);
+	}
+
+	private static int[][] splitFolds(PsmDataset dataset, JavaPotOptions config, DeterministicRandom rng) {
+		if (config.groupedCrossfit()) {
+			return FoldSplitter.splitGrouped(dataset, config.folds(), rng, config.pinFile().getFileName().toString());
+		}
+		return FoldSplitter.split(dataset, config.folds(), rng, config.pinFile().getFileName().toString());
 	}
 
 	private static void printDatasetInfo(PsmDataset dataset, JavaPotOptions config) {
@@ -414,6 +442,22 @@ public final class JavaPotRunner {
 		return out;
 	}
 
+	static double[] predictRawScores(PsmDataset dataset, int[][] folds, List<PercolatorFoldModel> models) {
+		if (folds.length != models.size()) {
+			throw new IllegalStateException("Number of folds does not match number of models");
+		}
+		double[] out = new double[dataset.size()];
+		for (int fi = 0; fi < folds.length; fi++) {
+			int[] testIdx = folds[fi];
+			double[][] x = subsetRows(dataset.rawFeatures(), testIdx);
+			double[] raw = models.get(fi).predict(x);
+			for (int i = 0; i < testIdx.length; i++) {
+				out[testIdx[i]] = raw[i];
+			}
+		}
+		return out;
+	}
+
 	private static void validateLoadedModelFolds(List<PercolatorFoldModel> models, int expectedFolds) {
 		boolean[] seen = new boolean[expectedFolds + 1];
 		for (PercolatorFoldModel model : models) {
@@ -454,18 +498,22 @@ public final class JavaPotRunner {
 			);
 			try {
 				DeterministicRandom retryRng = new DeterministicRandom(retrySeed);
-				int[][] retryFolds = FoldSplitter.split(dataset, config.folds(), retryRng, config.pinFile().getFileName().toString());
+				int[][] retryFolds = splitFolds(dataset, config, retryRng);
 				List<PercolatorFoldModel> retryModels = trainModels(dataset, retryFolds, config, retryRng);
-				double[] retryScores = predictScores(dataset, retryFolds, retryModels, config.testFdr());
-				double[] finalScores = maybeFallbackToBestFeature(
-					dataset,
-					retryModels,
-					retryScores,
-					config.testFdr(),
-					confidenceMode,
-					config.seed(),
-					config.quiet()
-				);
+				double[] retryScores = config.groupedCrossfit()
+					? predictRawScores(dataset, retryFolds, retryModels)
+					: predictScores(dataset, retryFolds, retryModels, config.testFdr());
+				double[] finalScores = config.groupedCrossfit()
+					? retryScores
+					: maybeFallbackToBestFeature(
+						dataset,
+						retryModels,
+						retryScores,
+						config.testFdr(),
+						confidenceMode,
+						config.seed(),
+						config.quiet()
+					);
 				log(config, "Recovered from fold training failure after re-folding.");
 				return new TrainingRecovery(retryModels, finalScores, false);
 			} catch (RuntimeException retryError) {
