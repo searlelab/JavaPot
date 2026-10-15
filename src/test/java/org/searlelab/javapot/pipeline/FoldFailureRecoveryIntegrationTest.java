@@ -37,7 +37,7 @@ class FoldFailureRecoveryIntegrationTest {
 			3,
 			17L,
 			null,
-			null,
+			0,
 			modelPath,
 			true,
 			false,

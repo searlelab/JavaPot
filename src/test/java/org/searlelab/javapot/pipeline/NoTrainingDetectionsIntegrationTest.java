@@ -36,7 +36,7 @@ class NoTrainingDetectionsIntegrationTest {
 			3,
 			11L,
 			null,
-			null,
+			0,
 			null,
 			true,
 			false,

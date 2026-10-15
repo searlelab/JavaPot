@@ -44,6 +44,7 @@ class JavaPotBakeoffTest {
 		assertEquals("featA", config.direction());
 		assertEquals(List.of("featA"), config.requiredStartFeatures());
 		assertEquals(0.1, config.minImprovementPercent());
+		assertEquals(0, config.subsetMaxTrain());
 		assertEquals(JavaPotOptions.DEFAULT_FOLDS, config.folds());
 		assertEquals(JavaPotOptions.DEFAULT_FOLDS, config.maxWorkers());
 	}
@@ -76,7 +77,7 @@ class JavaPotBakeoffTest {
 			"--test_fdr", "0.03",
 			"--max_iter", "7",
 			"--seed", "42",
-			"--subset_max_train", "500",
+			"--subset-max-train", "500",
 			"--folds", "4",
 			"-w", "2",
 			"--max_retries", "3",
@@ -98,6 +99,27 @@ class JavaPotBakeoffTest {
 		assertEquals(3, config.maxRetries());
 		assertTrue(config.mixmax());
 		assertEquals(1.5, config.minImprovementPercent());
+	}
+
+	@Test
+	void parseAcceptsLegacySubsetMaxTrainAliasAndZeroDefaultMode() throws Exception {
+		Path featureDir = tempDir.resolve("features");
+		Files.createDirectories(featureDir);
+		writeString(featureDir.resolve("z.pin"), "header\n");
+
+		JavaPotBakeoff.BakeoffConfig legacy = JavaPotBakeoff.parse(new String[]{
+			"--direction", "featA",
+			"--subset_max_train", "500",
+			featureDir.toString()
+		});
+		JavaPotBakeoff.BakeoffConfig allPsms = JavaPotBakeoff.parse(new String[]{
+			"--direction", "featA",
+			"--subset-max-train", "0",
+			featureDir.toString()
+		});
+
+		assertEquals(500, legacy.subsetMaxTrain());
+		assertEquals(0, allPsms.subsetMaxTrain());
 	}
 
 	@Test
@@ -162,7 +184,7 @@ class JavaPotBakeoffTest {
 		);
 		assertThrows(
 			IllegalArgumentException.class,
-			() -> JavaPotBakeoff.parse(new String[]{"--direction", "featA", "--subset_max_train", "0", featureDir.toString()})
+			() -> JavaPotBakeoff.parse(new String[]{"--direction", "featA", "--subset-max-train", "-1", featureDir.toString()})
 		);
 		assertThrows(
 			IllegalArgumentException.class,
@@ -320,7 +342,7 @@ class JavaPotBakeoffTest {
 			0.5,
 			10,
 			1L,
-			null,
+			0,
 			3,
 			1,
 			1,
@@ -345,7 +367,7 @@ class JavaPotBakeoffTest {
 			0.5,
 			10,
 			1L,
-			null,
+			0,
 			3,
 			1,
 			1,
@@ -370,7 +392,7 @@ class JavaPotBakeoffTest {
 			0.5,
 			5,
 			1L,
-			null,
+			0,
 			2,
 			1,
 			1,

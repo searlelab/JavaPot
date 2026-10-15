@@ -14,6 +14,7 @@ public final class JavaPotOptions {
 	public static final long DEFAULT_SEED = 1L;
 	public static final int DEFAULT_FOLDS = 3;
 	public static final int DEFAULT_MAX_RETRIES = 1;
+	public static final int DEFAULT_SUBSET_MAX_TRAIN = 0;
 
 	private final Path pinFile;
 	private final Path destDir;
@@ -25,7 +26,7 @@ public final class JavaPotOptions {
 	private final int maxIter;
 	private final long seed;
 	private final String direction;
-	private final Integer subsetMaxTrain;
+	private final int subsetMaxTrain;
 	private final Path saveModelFile;
 	private final boolean writePsmFiles;
 	private final boolean writeDecoyFiles;
@@ -50,7 +51,7 @@ public final class JavaPotOptions {
 		int maxIter,
 		long seed,
 		String direction,
-		Integer subsetMaxTrain,
+		int subsetMaxTrain,
 		Path saveModelFile,
 		boolean writePsmFiles,
 		boolean writeDecoyFiles,
@@ -64,6 +65,9 @@ public final class JavaPotOptions {
 		boolean mixmax,
 		boolean groupedCrossfit
 	) {
+		if (subsetMaxTrain < 0) {
+			throw new IllegalArgumentException("subsetMaxTrain must be >= 0");
+		}
 		this.pinFile = pinFile;
 		this.destDir = destDir;
 		this.maxWorkers = maxWorkers;
@@ -131,12 +135,56 @@ public final class JavaPotOptions {
 		Path pinFile,
 		double trainFdr,
 		double testFdr,
+		Path resultsPeptides,
+		Path decoyResultsPeptides,
+		Path saveModelFile,
+		Path loadModelFile,
+		boolean mixmax
+	) {
+		this(
+			pinFile,
+			trainFdr,
+			testFdr,
+			DEFAULT_SUBSET_MAX_TRAIN,
+			resultsPeptides,
+			decoyResultsPeptides,
+			saveModelFile,
+			loadModelFile,
+			mixmax
+		);
+	}
+
+	public JavaPotOptions(
+		Path pinFile,
+		double trainFdr,
+		double testFdr,
 		int subsetMaxTrain,
 		Path resultsPeptides,
 		Path decoyResultsPeptides,
 		boolean mixmax
 	) {
 		this(pinFile, trainFdr, testFdr, subsetMaxTrain, resultsPeptides, decoyResultsPeptides, null, null, mixmax);
+	}
+
+	public JavaPotOptions(
+		Path pinFile,
+		double trainFdr,
+		double testFdr,
+		Path resultsPeptides,
+		Path decoyResultsPeptides,
+		boolean mixmax
+	) {
+		this(
+			pinFile,
+			trainFdr,
+			testFdr,
+			DEFAULT_SUBSET_MAX_TRAIN,
+			resultsPeptides,
+			decoyResultsPeptides,
+			null,
+			null,
+			mixmax
+		);
 	}
 
 	private static Path defaultOutputDir(Path pinFile) {
@@ -188,7 +236,7 @@ public final class JavaPotOptions {
 		return direction;
 	}
 
-	public Integer subsetMaxTrain() {
+	public int subsetMaxTrain() {
 		return subsetMaxTrain;
 	}
 
@@ -265,7 +313,7 @@ public final class JavaPotOptions {
 			&& Objects.equals(destDir, other.destDir)
 			&& outputFormat == other.outputFormat
 			&& Objects.equals(direction, other.direction)
-			&& Objects.equals(subsetMaxTrain, other.subsetMaxTrain)
+			&& subsetMaxTrain == other.subsetMaxTrain
 			&& Objects.equals(saveModelFile, other.saveModelFile)
 			&& Objects.equals(resultsPeptides, other.resultsPeptides)
 			&& Objects.equals(decoyResultsPeptides, other.decoyResultsPeptides)

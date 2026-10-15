@@ -47,8 +47,8 @@ Options:
   --seed SEED           An integer to use as the random seed.
   --direction DIRECTION
                         The name of the feature to use as the initial direction for ranking PSMs.
-  --subset_max_train SUBSET_MAX_TRAIN
-                        Maximum number of PSMs to use during the training of each of the cross validation folds in the model.
+  --subset-max-train SUBSET_MAX_TRAIN
+                        Maximum number of PSMs to use during fold training. Use 0 to train on all PSMs. Default: 0.
   --write_model_files   Save learned fold models to <pin_base>.model.tsv in --dest_dir.
   --weights PATH        Save learned fold models to PATH (Percolator-compatible alias).
   --write_psm_files     Write target PSM output files in addition to peptide files.
@@ -85,6 +85,7 @@ JavaPotOptions options = new JavaPotOptions(
     Path.of("/path/to/input.pin"),
     0.01,
     0.01,
+    0, // subsetMaxTrain: 0 trains on all PSMs; use a positive cap for huge inputs
     Path.of("targets.peptides.tsv"),
     Path.of("decoys.peptides.tsv"),
     Path.of("saved.model.tsv"),
@@ -98,6 +99,15 @@ JavaPotRunResult result = JavaPotApi.run(options);
 ```
 
 `JavaPotPeptide` exposes: `score`, `qValue`, `pep`, `isDecoy`, `psmId`, and `peptideSequence`.
+
+For inputs exceeding one million PSMs, `--subset-max-train N` (also available in Bakeoff)
+limits each fold's training set to a random sample of at most N PSMs. Sampling is repeatable
+with `--seed`, and the learned models still score all PSMs. The default, 0, uses each fold's
+entire training set. The legacy `--subset_max_train` spelling is also accepted.
+
+The API uses primitive `int` for `subsetMaxTrain`; pass 0 instead of the former nullable
+`Integer` value. Applications built against the former constructor or getter signatures
+must be recompiled. Negative values are rejected.
 
 ## Relationship to mokapot and Percolator
 JavaPot is intended to mirror the mokapot Percolator-like algorithmic path in Java. For reference implementations and related tooling, see:

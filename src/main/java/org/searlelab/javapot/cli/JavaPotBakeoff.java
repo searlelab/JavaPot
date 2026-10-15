@@ -59,7 +59,7 @@ public final class JavaPotBakeoff {
 		double testFdr = JavaPotOptions.DEFAULT_FDR;
 		int maxIter = JavaPotOptions.DEFAULT_MAX_ITER;
 		long seed = JavaPotOptions.DEFAULT_SEED;
-		Integer subsetMaxTrain = null;
+		int subsetMaxTrain = JavaPotOptions.DEFAULT_SUBSET_MAX_TRAIN;
 		int folds = JavaPotOptions.DEFAULT_FOLDS;
 		Integer maxWorkers = null;
 		int maxRetries = JavaPotOptions.DEFAULT_MAX_RETRIES;
@@ -88,6 +88,7 @@ public final class JavaPotBakeoff {
 				case "--seed":
 					seed = parseLong(requireValue(args, ++i, arg), arg);
 					break;
+				case "--subset-max-train":
 				case "--subset_max_train":
 					subsetMaxTrain = parseInt(requireValue(args, ++i, arg), arg);
 					break;
@@ -103,6 +104,7 @@ public final class JavaPotBakeoff {
 					break;
 				case "--mixmax":
 				case "--post-processing-mix-max":
+				case "--post_processing_mix_max":
 					mixmax = true;
 					break;
 				case "--min_improvement_percent":
@@ -141,8 +143,8 @@ public final class JavaPotBakeoff {
 		if (maxIter < 1) {
 			throw new IllegalArgumentException("--max_iter must be >= 1");
 		}
-		if (subsetMaxTrain != null && subsetMaxTrain < 1) {
-			throw new IllegalArgumentException("--subset_max_train must be >= 1");
+		if (subsetMaxTrain < 0) {
+			throw new IllegalArgumentException("--subset-max-train must be >= 0");
 		}
 		if (trainFdr <= 0.0 || trainFdr >= 1.0) {
 			throw new IllegalArgumentException("--train_fdr must be in (0,1)");
@@ -196,7 +198,7 @@ public final class JavaPotBakeoff {
 			"  --test_fdr TEST_FDR   Test-time FDR threshold used for peptide counting. Default: 0.01.",
 			"  --max_iter MAX_ITER   Max training iterations per fold. Default: 10.",
 			"  --seed SEED           Random seed for deterministic fold splits/training. Default: 1.",
-			"  --subset_max_train N  Optional cap on fold training-set size.",
+			"  --subset-max-train N  Maximum PSMs used for fold training. Use 0 for all PSMs. Default: 0.",
 			"  --folds FOLDS         Number of cross-validation folds. Default: 3.",
 			"  -w, --max_workers N   Number of training workers (defaults to --folds).",
 			"  --max_retries N       Re-fold retries after no-label fold failures. Default: 1.",
@@ -578,6 +580,7 @@ public final class JavaPotBakeoff {
 		List<String> referenceHeaders = null;
 		List<String> referenceFeatures = null;
 		for (Path pinFile : pinFiles) {
+			System.out.println("Loading "+pinFile);
 			PsmDataset dataset = PinFileParser.read(pinFile);
 			List<String> headers = dataset.headers();
 			List<String> features = List.of(dataset.featureNames());
@@ -721,7 +724,7 @@ public final class JavaPotBakeoff {
 		private final double testFdr;
 		private final int maxIter;
 		private final long seed;
-		private final Integer subsetMaxTrain;
+		private final int subsetMaxTrain;
 		private final int folds;
 		private final int maxWorkers;
 		private final int maxRetries;
@@ -737,7 +740,7 @@ public final class JavaPotBakeoff {
 			double testFdr,
 			int maxIter,
 			long seed,
-			Integer subsetMaxTrain,
+			int subsetMaxTrain,
 			int folds,
 			int maxWorkers,
 			int maxRetries,
@@ -768,7 +771,7 @@ public final class JavaPotBakeoff {
 		double testFdr() { return testFdr; }
 		int maxIter() { return maxIter; }
 		long seed() { return seed; }
-		Integer subsetMaxTrain() { return subsetMaxTrain; }
+		int subsetMaxTrain() { return subsetMaxTrain; }
 		int folds() { return folds; }
 		int maxWorkers() { return maxWorkers; }
 		int maxRetries() { return maxRetries; }

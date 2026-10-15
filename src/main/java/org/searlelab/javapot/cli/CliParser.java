@@ -34,7 +34,7 @@ public final class CliParser {
 		int maxIter = JavaPotOptions.DEFAULT_MAX_ITER;
 		long seed = JavaPotOptions.DEFAULT_SEED;
 		String direction = null;
-		Integer subsetMaxTrain = null;
+		int subsetMaxTrain = JavaPotOptions.DEFAULT_SUBSET_MAX_TRAIN;
 		boolean writeModelFiles = false;
 		Path saveModelFile = null;
 		boolean writePsmFiles = false;
@@ -85,6 +85,7 @@ public final class CliParser {
 				case "--direction":
 					direction = requireValue(args, ++i, arg);
 					break;
+				case "--subset-max-train":
 				case "--subset_max_train":
 					subsetMaxTrain = parseInt(requireValue(args, ++i, arg), arg);
 					break;
@@ -163,8 +164,8 @@ public final class CliParser {
 		if (maxIter < 1) {
 			throw new IllegalArgumentException("--max_iter must be >= 1");
 		}
-		if (subsetMaxTrain != null && subsetMaxTrain.intValue() < 1) {
-			throw new IllegalArgumentException("--subset_max_train must be >= 1");
+		if (subsetMaxTrain < 0) {
+			throw new IllegalArgumentException("--subset-max-train must be >= 0");
 		}
 		if (trainFdr <= 0 || trainFdr >= 1) {
 			throw new IllegalArgumentException("--train_fdr must be in (0,1)");
@@ -227,8 +228,8 @@ public final class CliParser {
 			"  --seed SEED           An integer to use as the random seed.",
 			"  --direction DIRECTION",
 			"                        The name of the feature to use as the initial direction for ranking PSMs.",
-			"  --subset_max_train SUBSET_MAX_TRAIN",
-			"                        Maximum number of PSMs to use during the training of each of the cross validation folds in the model.",
+			"  --subset-max-train SUBSET_MAX_TRAIN",
+			"                        Maximum number of PSMs to use during fold training. Use 0 to train on all PSMs. Default: 0.",
 			"  --write_model_files   Save learned fold models to <pin_base>.model.tsv in --dest_dir.",
 			"  --weights PATH        Save learned fold models to PATH (Percolator-compatible alias).",
 			"  --write_psm_files     Write target PSM output files in addition to peptide files.",

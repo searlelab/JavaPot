@@ -35,7 +35,7 @@ class SparseDecoyFoldIntegrationTest {
 			2,
 			3L,
 			null,
-			null,
+			0,
 			null,
 			true,
 			false,

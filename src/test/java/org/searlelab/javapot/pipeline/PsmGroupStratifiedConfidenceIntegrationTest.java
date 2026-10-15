@@ -92,7 +92,7 @@ class PsmGroupStratifiedConfidenceIntegrationTest {
 			3,
 			7L,
 			"featA",
-			null,
+			0,
 			null,
 			true,
 			false,

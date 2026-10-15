@@ -396,8 +396,8 @@ public final class JavaPotRunner {
 		return models;
 	}
 
-	private static int[] maybeSubsetTrain(int[] trainIdx, Integer subsetMaxTrain, DeterministicRandom rng) {
-		if (subsetMaxTrain == null || trainIdx.length <= subsetMaxTrain) {
+	private static int[] maybeSubsetTrain(int[] trainIdx, int subsetMaxTrain, DeterministicRandom rng) {
+		if (subsetMaxTrain == 0 || trainIdx.length <= subsetMaxTrain) {
 			return trainIdx;
 		}
 		return rng.choiceWithoutReplacement(trainIdx, subsetMaxTrain);

@@ -26,6 +26,7 @@ class CliParserTest {
 		assertEquals(0.01, cfg.testFdr());
 		assertEquals(10, cfg.maxIter());
 		assertEquals(1L, cfg.seed());
+		assertEquals(0, cfg.subsetMaxTrain());
 		assertEquals(3, cfg.folds());
 		assertEquals(1, cfg.maxRetries());
 		assertFalse(cfg.writePsmFiles());
@@ -97,7 +98,7 @@ class CliParserTest {
 			"--max_iter", "20",
 			"--seed", "1234",
 			"--direction", "featA",
-			"--subset_max_train", "777",
+			"--subset-max-train", "777",
 			"--output_format", "mokapot",
 			"--write_psm_files",
 			"--write_decoy_files",
@@ -124,6 +125,18 @@ class CliParserTest {
 		assertEquals(4, cfg.maxRetries());
 		assertTrue(cfg.mixmax());
 		assertFalse(cfg.groupedCrossfit());
+	}
+
+	@Test
+	void parsesLegacySubsetMaxTrainAlias() {
+		JavaPotOptions cfg = CliParser.parse(new String[]{"input.pin", "--subset_max_train", "123"});
+		assertEquals(123, cfg.subsetMaxTrain());
+	}
+
+	@Test
+	void subsetMaxTrainZeroMeansTrainOnAllPsms() {
+		JavaPotOptions cfg = CliParser.parse(new String[]{"input.pin", "--subset-max-train", "0"});
+		assertEquals(0, cfg.subsetMaxTrain());
 	}
 
 	@Test
@@ -197,7 +210,7 @@ class CliParserTest {
 		assertThrows(IllegalArgumentException.class, () -> CliParser.parse(new String[]{"input.pin", "--max_retries", "abc"}));
 		assertThrows(IllegalArgumentException.class, () -> CliParser.parse(new String[]{"input.pin", "--max_iter", "0"}));
 		assertThrows(IllegalArgumentException.class, () -> CliParser.parse(new String[]{"input.pin", "--max_iter", "xyz"}));
-		assertThrows(IllegalArgumentException.class, () -> CliParser.parse(new String[]{"input.pin", "--subset_max_train", "0"}));
+		assertThrows(IllegalArgumentException.class, () -> CliParser.parse(new String[]{"input.pin", "--subset-max-train", "-1"}));
 		assertThrows(IllegalArgumentException.class, () -> CliParser.parse(new String[]{"input.pin", "--train_fdr", "0"}));
 		assertThrows(IllegalArgumentException.class, () -> CliParser.parse(new String[]{"input.pin", "--test_fdr", "1"}));
 		assertThrows(IllegalArgumentException.class, () -> CliParser.parse(new String[]{"input.pin", "--seed", "x"}));
@@ -224,6 +237,7 @@ class CliParserTest {
 		assertTrue(help.contains("Usage: javapot"));
 		assertTrue(help.contains("--help"));
 		assertTrue(help.contains("--train_fdr"));
+		assertTrue(help.contains("--subset-max-train"));
 		assertTrue(help.contains("--output_format"));
 		assertTrue(help.contains("--mixmax"));
 		assertTrue(help.contains("--post-processing-mix-max"));
