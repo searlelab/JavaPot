@@ -122,9 +122,17 @@ public final class ClassWeightGridSearch {
 	}
 
 	private static double[][] subsetRows(double[][] x, int[] idx) {
-		double[][] out = new double[idx.length][x[0].length];
+		// SVM consumers only read rows. Retain the historical behavior for irregular public inputs.
+		double[][] out = new double[idx.length][];
+		int width = x[0].length;
 		for (int i = 0; i < idx.length; i++) {
-			System.arraycopy(x[idx[i]], 0, out[i], 0, x[0].length);
+			double[] row = x[idx[i]];
+			if (row.length == width) {
+				out[i] = row;
+			} else {
+				out[i] = new double[width];
+				System.arraycopy(row, 0, out[i], 0, width);
+			}
 		}
 		return out;
 	}

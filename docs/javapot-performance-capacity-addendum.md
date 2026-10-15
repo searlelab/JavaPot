@@ -1,0 +1,17 @@
+# Capacity assessment addendum, 2026-10-15
+
+The canonical plan in `uu-javapot-performance.md` remains unchanged. The user subsequently requested stronger attention to total process memory after observing >30 GB benchmark processes, and authorized exploration of on-disk B-tree/SQLite storage and limited-training fallback options.
+
+Approved extension: evaluate the **retained** 9,586,485-row Stellar GPF PIN as a separate capacity experiment, without rerunning any raw search. Prefer exact storage improvements first. If those prove insufficient, a documented smaller-cap GPF experiment may change its trained results. The six established PINs retain exact-result requirements and their original 500,000 training cap. No automatic cap reduction or silent result-changing fallback is permitted.
+
+Report macOS peak footprint alongside RSS and post-collection heap; do not mistake compression-induced RSS reduction for lower total memory demand. First test the compact representation and bounded scoring/matrix ownership changes at smaller completing heaps, then assess whether disk-backed storage is necessary. Do not add a database dependency or an alternative solver solely because a fallback was suggested.
+
+The GPF PIN's historical main SHA-256 in `stellar_gpf/result.json` is `eb92a7cacad0b29aac0f29bebb1c1d361c838055306caa8ce40cecf1482b0a0a`. Verify it before the capacity replay. The original 30 GiB embedding failure is historical evidence, not a freshly matched standalone capacity result. A successful candidate run cannot establish full-file baseline parity where no successful baseline output exists; distinguish that limitation from exact parity established on the other six PINs.
+
+The referenced [The et al. 2016 paper](https://d-nb.info/1114703907/34), “Subset Training,” describes a global downsample and averaging scores from three classifiers. JavaPot's existing option instead caps each fold's training rows while retaining held-out-fold scoring. Keep that existing scientific path; copying the paper's averaging scheme would be a separate algorithm change. Lowering the cap also cannot fix the memory required to parse and retain all rows.
+
+A possible disk design would address raw-row storage before changing numerical algorithms: ordinal row access does not itself require a general B-tree. An indexed spill file or SQLite row table would need bounded caching, deterministic row reconstruction, thread-safe reads, and an explicit shared lifetime across `withColumnGroups` views. Those costs are warranted only if the retained capacity case still requires them after the in-memory reductions are measured.
+
+The user clarified that the numerical gates protect against adverse speed/memory tradeoffs rather than impose a minimum benefit: the observed 14.7 → 12.1 GB process-footprint reduction with flat runtime is worth retaining. Keep that beneficial change. Continue reporting the original 10%/20% thresholds as reference targets, but do not discard a clear memory benefit with neutral runtime solely because it falls below 20%. Exact scientific parity on the six established PINs remains mandatory.
+
+After seeing the combined timsTOF diagnostic result (approximately 14.9 → 4.5 GB peak footprint with approximately 22% slower API time), the user explicitly accepted retaining that substantial memory reduction even if a better runtime tradeoff cannot be found. Continue investigating locality and reporting timing uncertainty; do not mislabel this exception as meeting the original reference targets.

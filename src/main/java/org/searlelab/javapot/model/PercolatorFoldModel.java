@@ -47,8 +47,17 @@ public final class PercolatorFoldModel implements Serializable {
 	 */
 	public double[] predict(double[][] rawFeatures) {
 		StandardScaler scaler = StandardScaler.from(means, scales);
-		double[][] norm = scaler.transform(rawFeatures);
-		return svm.decisionFunction(norm);
+		// Bound the normalized scoring matrix while preserving every row's arithmetic order.
+		double[] scores = new double[rawFeatures.length];
+		final int blockSize = 4096;
+		for (int first = 0; first < rawFeatures.length;) {
+			int end = first + Math.min(blockSize, rawFeatures.length - first);
+			double[][] block = Arrays.copyOfRange(rawFeatures, first, end);
+			double[] values = svm.decisionFunction(scaler.transform(block));
+			System.arraycopy(values, 0, scores, first, values.length);
+			first = end;
+		}
+		return scores;
 	}
 
 	/**

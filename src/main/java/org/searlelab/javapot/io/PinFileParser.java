@@ -5,10 +5,8 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
-import java.util.Set;
 
 import org.searlelab.javapot.data.ColumnGroups;
 import org.searlelab.javapot.data.PsmDataset;
@@ -26,55 +24,20 @@ public final class PinFileParser {
 	 */
 	public static PsmDataset read(Path pinFile) {
 		try {
-			boolean traditional = isTraditionalPin(pinFile);
-			ParsedFile parsed = parse(pinFile, traditional);
-			ColumnGroups initial = ColumnGroups.inferFromColnames(parsed.headers());
-			List<String> filteredFeatures = dropMissingFeatureColumns(parsed, initial.featureColumns());
-			ColumnGroups finalGroups = initial.withFeatureColumns(filteredFeatures);
-			String[][] rows = parsed.rows().toArray(new String[parsed.rows().size()][]);
-			return new PsmDataset(finalGroups, parsed.headers(), rows);
+			ParsedFile parsed = parse(pinFile);
+			return PsmDataset.fromTabRows(parsed.columnGroups(), parsed.headers(), parsed.rows());
 		} catch (IOException e) {
 			throw new RuntimeException("Failed to parse PIN file: " + pinFile, e);
 		}
 	}
 
-	private static boolean isTraditionalPin(Path pinFile) throws IOException {
-		try (BufferedReader reader = Files.newBufferedReader(pinFile)) {
-			String headerLine = nextDataLine(reader);
-			if (headerLine == null) {
-				throw new IllegalArgumentException("PIN file is empty: " + pinFile);
-			}
-			String[] header = splitTab(headerLine);
-			if (header.length == 1) {
-				throw new IllegalArgumentException("File is not a tab-delimited PIN file: " + pinFile);
-			}
-			String last = header[header.length - 1].toLowerCase(Locale.ROOT);
-			if (!last.startsWith("protein")) {
-				return false;
-			}
-			int fields = header.length;
-			String line;
-			while ((line = reader.readLine()) != null) {
-				if (shouldSkip(line)) {
-					continue;
-				}
-				String[] local = splitTab(line);
-				if (local.length < fields) {
-					throw new IllegalArgumentException(
-						"Invalid PIN row with fewer columns than header. expected=" + fields + " found=" + local.length
-					);
-				}
-				if (local.length > fields) {
-					return true;
-				}
-			}
-			return false;
-		}
-	}
-
-	private static ParsedFile parse(Path pinFile, boolean traditional) throws IOException {
+	private static ParsedFile parse(Path pinFile) throws IOException {
 		List<String> headers = null;
-		List<String[]> rows = new ArrayList<>();
+		boolean traditional = false;
+		List<String> rows = new ArrayList<>();
+		ColumnGroups initial = null;
+		int[] featureColumns = null;
+		boolean[] missing = null;
 		try (BufferedReader reader = Files.newBufferedReader(pinFile)) {
 			String line;
 			while ((line = reader.readLine()) != null) {
@@ -83,6 +46,16 @@ public final class PinFileParser {
 				}
 				if (headers == null) {
 					headers = List.of(splitTab(line));
+					if (headers.size() == 1) {
+						throw new IllegalArgumentException("File is not a tab-delimited PIN file: " + pinFile);
+					}
+					traditional = headers.get(headers.size() - 1).toLowerCase(Locale.ROOT).startsWith("protein");
+					initial = ColumnGroups.inferFromColnames(headers);
+					featureColumns = new int[initial.featureColumns().size()];
+					missing = new boolean[featureColumns.length];
+					for (int j = 0; j < featureColumns.length; j++) {
+						featureColumns[j] = headers.indexOf(initial.featureColumns().get(j));
+					}
 					continue;
 				}
 				String[] parts = splitTab(line);
@@ -96,17 +69,24 @@ public final class PinFileParser {
 						throw new IllegalArgumentException("Unexpected ragged row in non-traditional PIN file");
 					}
 					parts = normalizeTraditionalRow(parts, headers.size());
+					line = String.join("\t", parts);
 				}
-				rows.add(parts);
+				for (int j = 0; j < featureColumns.length; j++) {
+					if (!missing[j]) {
+						String value = parts[featureColumns[j]];
+						missing[j] = value == null || value.isBlank() || isNaToken(value);
+					}
+				}
+				rows.add(line);
 			}
 		}
 		if (headers == null) {
-			throw new IllegalArgumentException("PIN file did not contain a header row: " + pinFile);
+			throw new IllegalArgumentException("PIN file is empty: " + pinFile);
 		}
 		if (rows.isEmpty()) {
 			throw new IllegalArgumentException("PIN file did not contain any data rows: " + pinFile);
 		}
-		return new ParsedFile(headers, rows);
+		return new ParsedFile(initial.withFeatureColumns(dropMissingFeatureColumns(initial.featureColumns(), missing)), headers, rows);
 	}
 
 	private static String[] normalizeTraditionalRow(String[] parts, int headerSize) {
@@ -123,22 +103,11 @@ public final class PinFileParser {
 		return out;
 	}
 
-	private static List<String> dropMissingFeatureColumns(ParsedFile parsed, List<String> features) {
-		Set<String> drop = new HashSet<>();
-		for (String feature : features) {
-			int idx = parsed.headers().indexOf(feature);
-			for (String[] row : parsed.rows()) {
-				String value = row[idx];
-				if (value == null || value.isBlank() || isNaToken(value)) {
-					drop.add(feature);
-					break;
-				}
-			}
-		}
+	private static List<String> dropMissingFeatureColumns(List<String> features, boolean[] missing) {
 		List<String> out = new ArrayList<>();
-		for (String feature : features) {
-			if (!drop.contains(feature)) {
-				out.add(feature);
+		for (int j = 0; j < features.size(); j++) {
+			if (!missing[j]) {
+				out.add(features.get(j));
 			}
 		}
 		if (out.isEmpty()) {
@@ -150,16 +119,6 @@ public final class PinFileParser {
 	private static boolean isNaToken(String value) {
 		String lower = value.trim().toLowerCase(Locale.ROOT);
 		return lower.equals("na") || lower.equals("nan") || lower.equals("null");
-	}
-
-	private static String nextDataLine(BufferedReader reader) throws IOException {
-		String line;
-		while ((line = reader.readLine()) != null) {
-			if (!shouldSkip(line)) {
-				return line;
-			}
-		}
-		return null;
 	}
 
 	private static boolean shouldSkip(String line) {
@@ -174,26 +133,32 @@ public final class PinFileParser {
 	}
 
 	private static String[] splitTab(String line) {
-		return line.split("\\t", -1);
+		return line.split("\t", -1);
 	}
 
 	/**
-	 * ParsedFile stores raw header and row values before column-role inference.
+	 * ParsedFile stores normalized row text and inferred roles without retaining per-cell tokens.
 	 */
 	private static final class ParsedFile {
 		private final List<String> headers;
-		private final List<String[]> rows;
+		private final List<String> rows;
+		private final ColumnGroups columnGroups;
 
-		private ParsedFile(List<String> headers, List<String[]> rows) {
+		private ParsedFile(ColumnGroups columnGroups, List<String> headers, List<String> rows) {
+			this.columnGroups = columnGroups;
 			this.headers = headers;
 			this.rows = rows;
+		}
+
+		private ColumnGroups columnGroups() {
+			return columnGroups;
 		}
 
 		private List<String> headers() {
 			return headers;
 		}
 
-		private List<String[]> rows() {
+		private List<String> rows() {
 			return rows;
 		}
 	}

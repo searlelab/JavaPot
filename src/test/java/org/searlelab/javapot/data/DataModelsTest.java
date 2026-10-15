@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import java.util.ArrayList;
 import java.util.List;
 
 import org.junit.jupiter.api.Test;
@@ -216,5 +217,48 @@ class DataModelsTest {
 	void uniquePreserveOrderDropsDuplicates() {
 		List<String> unique = ColumnGroups.uniquePreserveOrder(List.of("A", "B", "A", "C", "B"));
 		assertEquals(List.of("A", "B", "C"), unique);
+	}
+
+	@Test
+	void compactRowsRejectMissingAndExtraFields() {
+		List<String> headers = List.of("SpecId", "Label", "ScanNr", "featA", "Peptide", "Proteins");
+		ColumnGroups groups = ColumnGroups.inferFromColnames(headers);
+		String valid = "id1\t1\t7\t2.5\tPEPA\tP1";
+		String shortRow = "id2\t-1\t8\t3.5\tPEPB";
+		assertThrows(IllegalArgumentException.class,
+			() -> PsmDataset.fromTabRows(groups, headers, List.of(valid, shortRow)));
+		assertThrows(IllegalArgumentException.class,
+			() -> PsmDataset.fromTabRows(groups, headers, List.of(valid, shortRow + "\tP2\textra")));
+		assertThrows(IllegalArgumentException.class,
+			() -> PsmDataset.fromTabRows(groups, headers, List.of(valid + "\t")));
+
+		PsmDataset emptyProtein = PsmDataset.fromTabRows(groups, headers, List.of(shortRow + "\t"));
+		assertEquals("", emptyProtein.rawValueAt(0, 5));
+		assertEquals(headers.size(), emptyProtein.rows()[0].length);
+	}
+
+	@Test
+	void compactRowsKeepExactTextAndDoNotRetainCallerListMutations() {
+		List<String> headers = List.of("SpecId", "Label", "ScanNr", "featA", "featB", "Peptide", "Proteins");
+		ColumnGroups groups = ColumnGroups.inferFromColnames(headers);
+		List<String> text = new ArrayList<>(List.of("id1\t1\t001\t-0.000\t1.000e+2\tPÉP\t"));
+		PsmDataset compact = PsmDataset.fromTabRows(groups, headers, text);
+		text.set(0, "replaced");
+		assertEquals("-0.000", compact.valueAt(0, "featA"));
+		assertEquals("1.000e+2", compact.valueAt(0, "featB"));
+		assertEquals("", compact.valueAt(0, "Proteins"));
+		assertEquals(Double.doubleToRawLongBits(-0.0), Double.doubleToRawLongBits(compact.rawFeatures()[0][0]));
+		String[][] copy = compact.rows();
+		copy[0][3] = "42";
+		assertEquals("-0.000", compact.rows()[0][3]);
+		assertEquals(100.0, compact.withColumnGroups(groups.withFeatureColumns(List.of("featB"))).rawFeatures()[0][0]);
+
+		// Keep the existing matrix constructor's raw-row aliasing and cached numeric values.
+		String[][] rows = {{"id1", "1", "001", "2.0", "3.0", "PEP", "P"}};
+		PsmDataset legacy = new PsmDataset(groups, headers, rows);
+		rows[0][3] = "4.000";
+		assertEquals("4.000", legacy.valueAt(0, "featA"));
+		assertEquals(2.0, legacy.rawFeatures()[0][0]);
+		assertEquals(4.0, legacy.withColumnGroups(groups).rawFeatures()[0][0]);
 	}
 }

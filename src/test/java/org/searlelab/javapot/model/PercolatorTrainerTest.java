@@ -1,6 +1,7 @@
 package org.searlelab.javapot.model;
 
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 
 import java.util.List;
 
@@ -20,9 +21,15 @@ class PercolatorTrainerTest {
 			{"id4", "-1", "103", "500.3", "1.0", "PEP4", "P4"}
 		});
 		TrainingParams params = new TrainingParams(0.5, 1, "feat", 7L, ConfidenceMode.TDC, true);
+		double[][] originalFeatures = ds.features();
+		boolean[] originalTargets = ds.targets();
 
 		FoldTrainingOutput out = PercolatorTrainer.trainFold(ds, new int[]{0, 1, 2, 3}, 1, params);
 		assertTrue(out.bestFeaturePass() > 0, "Expected positive training labels under TDC with skipDecoysPlusOne default");
+		assertArrayEquals(originalTargets, ds.rawTargets());
+		for (int row = 0; row < ds.size(); row++) {
+			assertArrayEquals(originalFeatures[row], ds.rawFeatures()[row], "Training must not mutate shared feature rows");
+		}
 	}
 
 	private static PsmDataset makeDataset(String[][] rows) {

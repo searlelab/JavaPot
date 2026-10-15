@@ -27,11 +27,27 @@ public final class LabelUpdater {
 		long seed,
 		boolean skipDecoysPlusOne
 	) {
+		return updateLabels(scores, targets, evalFdr, desc, mode, seed, skipDecoysPlusOne, null);
+	}
+
+	/**
+	 * Converts scores using optional invocation-owned TDC scratch; mixmax retains its existing path.
+	 */
+	public static int[] updateLabels(
+		double[] scores,
+		boolean[] targets,
+		double evalFdr,
+		boolean desc,
+		ConfidenceMode mode,
+		long seed,
+		boolean skipDecoysPlusOne,
+		QValues.TdcWorkspace workspace
+	) {
 		double[] qvals;
 		if (mode == ConfidenceMode.MIXMAX) {
 			qvals = MixMaxQValues.compute(scores, targets, desc, seed, skipDecoysPlusOne, 0.5).qValues();
 		} else {
-			qvals = QValues.tdc(scores, targets, desc, skipDecoysPlusOne);
+			qvals = QValues.tdc(scores, targets, desc, skipDecoysPlusOne, workspace);
 		}
 		int[] out = new int[qvals.length];
 		for (int i = 0; i < qvals.length; i++) {

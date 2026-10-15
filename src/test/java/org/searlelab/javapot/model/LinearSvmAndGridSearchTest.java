@@ -2,6 +2,8 @@ package org.searlelab.javapot.model;
 
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import org.junit.jupiter.api.Test;
 
@@ -47,5 +49,15 @@ class LinearSvmAndGridSearchTest {
 		assertNotNull(pair);
 		assertTrue(pair.negative() == 0.1 || pair.negative() == 1.0 || pair.negative() == 10.0);
 		assertTrue(pair.positive() == 0.1 || pair.positive() == 1.0 || pair.positive() == 10.0);
+	}
+
+	@Test
+	void gridSearchKeepsFirstRowWidthForIrregularInputs() {
+		double[][] rectangular = {{2, 2}, {3, 3}, {2, 3}, {-2, -2}, {-3, -3}, {-2, -3}};
+		double[][] longerRows = {{2, 2}, {3, 3, 123}, {2, 3}, {-2, -2}, {-3, -3, 42}, {-2, -3}};
+		int[] labels = {1, 1, 1, 0, 0, 0};
+		assertEquals(ClassWeightGridSearch.select(rectangular, labels, 123), ClassWeightGridSearch.select(longerRows, labels, 123));
+		double[][] shorterRow = {{2, 2}, {3}, {2, 3}, {-2, -2}, {-3, -3}, {-2, -3}};
+		assertThrows(IndexOutOfBoundsException.class, () -> ClassWeightGridSearch.select(shorterRow, labels, 123));
 	}
 }

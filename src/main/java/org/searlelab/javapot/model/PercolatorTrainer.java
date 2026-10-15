@@ -192,9 +192,10 @@ public final class PercolatorTrainer {
 	}
 
 	private static double[][] subsetRows(double[][] x, int[] idx) {
-		double[][] out = new double[idx.length][x[0].length];
+		// Private consumers only read these rows; normalization creates fold-owned rows.
+		double[][] out = new double[idx.length][];
 		for (int i = 0; i < idx.length; i++) {
-			System.arraycopy(x[idx[i]], 0, out[i], 0, x[0].length);
+			out[i] = x[idx[i]];
 		}
 		return out;
 	}
@@ -216,7 +217,8 @@ public final class PercolatorTrainer {
 	}
 
 	private static double[][] takeRows(double[][] x, int[] idx) {
-		double[][] out = new double[idx.length][x[0].length];
+		// Keep shuffled training rows together for repeated SVM scans, without allocating rows twice.
+		double[][] out = new double[idx.length][];
 		for (int i = 0; i < idx.length; i++) {
 			out[i] = Arrays.copyOf(x[idx[i]], x[idx[i]].length);
 		}
@@ -246,7 +248,7 @@ public final class PercolatorTrainer {
 				count++;
 			}
 		}
-		double[][] outX = new double[count][x[0].length];
+		double[][] outX = new double[count][];
 		int[] ySigned = new int[count];
 		int[] y01 = new int[count];
 		int c = 0;
@@ -254,7 +256,8 @@ public final class PercolatorTrainer {
 			if (labels[i] == 0) {
 				continue;
 			}
-			System.arraycopy(x[i], 0, outX[c], 0, x[i].length);
+			// SVM fitting and grid search treat the fold-owned normalized rows as read-only.
+			outX[c] = x[i];
 			ySigned[c] = labels[i] == 1 ? 1 : -1;
 			y01[c] = labels[i] == 1 ? 1 : 0;
 			c++;

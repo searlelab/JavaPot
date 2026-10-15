@@ -71,7 +71,9 @@ public final class JavaPotRunner {
 	 */
 	public static JavaPotRunResult runForResult(JavaPotOptions config) {
 		log(config, "JavaPot starting");
+		long parseStart = PipelineTiming.start();
 		PsmDataset dataset = PinFileParser.read(config.pinFile());
+		PipelineTiming.record("parse", parseStart);
 		printDatasetInfo(dataset, config);
 		OutputPlan outputPlan = buildOutputPlan(config);
 
@@ -116,6 +118,7 @@ public final class JavaPotRunner {
 				finalScores = scoreByFeatureDirection(dataset, dataset.featureNames()[0], true);
 			}
 		} else {
+			long initialStart = PipelineTiming.start();
 			FeatureStartChoice startChoice = chooseStartFeature(
 				dataset,
 				config.direction(),
@@ -123,6 +126,7 @@ public final class JavaPotRunner {
 				confidenceMode,
 				config.seed()
 			);
+			PipelineTiming.record("initial_feature", initialStart);
 			if (startChoice.passCount() <= 0) {
 				forceNoDetections = true;
 				log(
@@ -168,9 +172,11 @@ public final class JavaPotRunner {
 			config.outputFormat(),
 			confidenceMode,
 			config.seed(),
-			forceNoDetections
+			forceNoDetections,
+			outputPlan
 		);
 
+		long writeStart = PipelineTiming.start();
 		List<Path> writtenPaths = writeOutputTables(tables, outputPlan);
 
 		if (config.saveModelFile() != null) {
@@ -182,6 +188,7 @@ public final class JavaPotRunner {
 			}
 		}
 
+		PipelineTiming.record("writing", writeStart);
 		log(config, "Found " + tables.peptidesAtThreshold() + " peptides with q<=" + config.testFdr());
 		if (!writtenPaths.isEmpty()) {
 			log(config, "Wrote " + joinPaths(writtenPaths));
@@ -347,6 +354,7 @@ public final class JavaPotRunner {
 		JavaPotOptions config,
 		DeterministicRandom rng
 	) {
+		long trainingStart = PipelineTiming.start();
 		log(config, "Splitting PSMs into " + config.folds() + " folds...");
 		List<Callable<FoldTrainingOutput>> tasks = new ArrayList<>(folds.length);
 		for (int fi = 0; fi < folds.length; fi++) {
@@ -393,6 +401,7 @@ public final class JavaPotRunner {
 		for (FoldTrainingOutput out : outputs) {
 			models.add(out.model());
 		}
+		PipelineTiming.record("training", trainingStart);
 		return models;
 	}
 
@@ -425,6 +434,7 @@ public final class JavaPotRunner {
 	}
 
 	private static double[] predictScores(PsmDataset dataset, int[][] folds, List<PercolatorFoldModel> models, double testFdr) {
+		long scoringStart = PipelineTiming.start();
 		if (folds.length != models.size()) {
 			throw new IllegalStateException("Number of folds does not match number of models");
 		}
@@ -439,10 +449,12 @@ public final class JavaPotRunner {
 				out[testIdx[i]] = calibrated[i];
 			}
 		}
+		PipelineTiming.record("scoring_calibration", scoringStart);
 		return out;
 	}
 
 	static double[] predictRawScores(PsmDataset dataset, int[][] folds, List<PercolatorFoldModel> models) {
+		long scoringStart = PipelineTiming.start();
 		if (folds.length != models.size()) {
 			throw new IllegalStateException("Number of folds does not match number of models");
 		}
@@ -455,6 +467,7 @@ public final class JavaPotRunner {
 				out[testIdx[i]] = raw[i];
 			}
 		}
+		PipelineTiming.record("scoring_calibration", scoringStart);
 		return out;
 	}
 
@@ -543,6 +556,8 @@ public final class JavaPotRunner {
 		if (featureNames.length == 0) {
 			throw new IllegalStateException("No feature columns available for scoring.");
 		}
+		QValues.TdcWorkspace workspace = confidenceMode == ConfidenceMode.TDC
+			? new QValues.TdcWorkspace(dataset.size()) : null;
 
 		if (direction != null) {
 			int featureIdx = -1;
@@ -556,8 +571,8 @@ public final class JavaPotRunner {
 				throw new IllegalArgumentException("Direction feature not found: " + direction);
 			}
 			double[] scores = dataset.featureColumn(direction);
-			int descPass = countTrainingPasses(scores, targets, trainFdr, true, confidenceMode, seed);
-			int ascPass = countTrainingPasses(scores, targets, trainFdr, false, confidenceMode, seed + 1L);
+			int descPass = countTrainingPasses(scores, targets, trainFdr, true, confidenceMode, seed, workspace);
+			int ascPass = countTrainingPasses(scores, targets, trainFdr, false, confidenceMode, seed + 1L, workspace);
 			boolean descending = descPass >= ascPass;
 			int passCount = descending ? descPass : ascPass;
 			return new FeatureStartChoice(direction, descending, passCount);
@@ -570,7 +585,7 @@ public final class JavaPotRunner {
 			double[] scores = dataset.featureColumn(featureNames[j]);
 			for (boolean desc : new boolean[]{true, false}) {
 				long labelSeed = seed + (j * 2L) + (desc ? 0L : 1L);
-				int pass = countTrainingPasses(scores, targets, trainFdr, desc, confidenceMode, labelSeed);
+				int pass = countTrainingPasses(scores, targets, trainFdr, desc, confidenceMode, labelSeed, workspace);
 				if (pass > bestPass) {
 					bestPass = pass;
 					bestFeature = featureNames[j];
@@ -587,7 +602,8 @@ public final class JavaPotRunner {
 		double trainFdr,
 		boolean desc,
 		ConfidenceMode confidenceMode,
-		long seed
+		long seed,
+		QValues.TdcWorkspace workspace
 	) {
 		boolean skipDecoysPlusOne = true;
 		int[] labels = LabelUpdater.updateLabels(
@@ -597,7 +613,8 @@ public final class JavaPotRunner {
 			desc,
 			confidenceMode,
 			seed,
-			skipDecoysPlusOne
+			skipDecoysPlusOne,
+			workspace
 		);
 		return countOnes(labels);
 	}
@@ -678,13 +695,17 @@ public final class JavaPotRunner {
 		OutputFormat outputFormat,
 		ConfidenceMode confidenceMode,
 		long seed,
-		boolean forceNoDetections
+		boolean forceNoDetections,
+		OutputPlan outputPlan
 	) {
+		long selectionStart = PipelineTiming.start();
 		int[] psmBest = confidenceMode == ConfidenceMode.MIXMAX
 			? sortedIndicesByScore(scores)
 			: deduplicateBySpectrum(dataset, scores);
 		int[] peptideBest = deduplicateByPeptide(dataset, psmBest, scores);
 
+		PipelineTiming.record("representative_selection", selectionStart);
+		long confidenceStart = PipelineTiming.start();
 		double[] psmScores = gather(scores, psmBest);
 		boolean[] psmTargets = gatherTargets(dataset.rawTargets(), psmBest);
 		ConfidenceResult psmConfidence = forceNoDetections
@@ -696,6 +717,8 @@ public final class JavaPotRunner {
 		ConfidenceResult peptideConfidence = forceNoDetections
 			? forcedNoDetections(pepScores.length)
 			: estimateConfidence(pepScores, pepTargets, confidenceMode, seed + 197L);
+		PipelineTiming.record("confidence", confidenceStart);
+		long outputStart = PipelineTiming.start();
 		ArrayList<JavaPotPeptide> psmResults = buildApiRows(
 			dataset,
 			psmBest,
@@ -719,7 +742,7 @@ public final class JavaPotRunner {
 		List<String[]> decoyPeptideRows;
 		if (outputFormat == OutputFormat.MOKAPOT) {
 			psmHeader = mokapotHeader(dataset.columnGroups());
-			targetPsmRows = buildMokapotRows(
+			targetPsmRows = outputPlan.targetPsmPath() == null ? List.of() : buildMokapotRows(
 				dataset,
 				psmBest,
 				psmScores,
@@ -728,7 +751,7 @@ public final class JavaPotRunner {
 				psmHeader,
 				true
 			);
-			decoyPsmRows = buildMokapotRows(
+			decoyPsmRows = outputPlan.decoyPsmPath() == null ? List.of() : buildMokapotRows(
 				dataset,
 				psmBest,
 				psmScores,
@@ -738,7 +761,7 @@ public final class JavaPotRunner {
 				false
 			);
 			peptideHeader = psmHeader;
-			targetPeptideRows = buildMokapotRows(
+			targetPeptideRows = outputPlan.targetPeptidePath() == null ? List.of() : buildMokapotRows(
 				dataset,
 				peptideBest,
 				pepScores,
@@ -747,7 +770,7 @@ public final class JavaPotRunner {
 				peptideHeader,
 				true
 			);
-			decoyPeptideRows = buildMokapotRows(
+			decoyPeptideRows = outputPlan.decoyPeptidePath() == null ? List.of() : buildMokapotRows(
 				dataset,
 				peptideBest,
 				pepScores,
@@ -758,7 +781,7 @@ public final class JavaPotRunner {
 			);
 		} else {
 			psmHeader = PERCOLATOR_HEADER;
-			targetPsmRows = buildPercolatorRows(
+			targetPsmRows = outputPlan.targetPsmPath() == null ? List.of() : buildPercolatorRows(
 				dataset,
 				psmBest,
 				psmScores,
@@ -766,7 +789,7 @@ public final class JavaPotRunner {
 				psmConfidence.pepValues(),
 				true
 			);
-			decoyPsmRows = buildPercolatorRows(
+			decoyPsmRows = outputPlan.decoyPsmPath() == null ? List.of() : buildPercolatorRows(
 				dataset,
 				psmBest,
 				psmScores,
@@ -775,7 +798,7 @@ public final class JavaPotRunner {
 				false
 			);
 			peptideHeader = PERCOLATOR_HEADER;
-			targetPeptideRows = buildPercolatorRows(
+			targetPeptideRows = outputPlan.targetPeptidePath() == null ? List.of() : buildPercolatorRows(
 				dataset,
 				peptideBest,
 				pepScores,
@@ -783,7 +806,7 @@ public final class JavaPotRunner {
 				peptideConfidence.pepValues(),
 				true
 			);
-			decoyPeptideRows = buildPercolatorRows(
+			decoyPeptideRows = outputPlan.decoyPeptidePath() == null ? List.of() : buildPercolatorRows(
 				dataset,
 				peptideBest,
 				pepScores,
@@ -794,6 +817,7 @@ public final class JavaPotRunner {
 		}
 		int peptidesAtThreshold = countTargetsAtThreshold(pepTargets, peptideConfidence.qValues(), evalFdr);
 
+		PipelineTiming.record("output_construction", outputStart);
 		return new OutputTables(
 			psmHeader,
 			targetPsmRows,
@@ -1143,9 +1167,10 @@ public final class JavaPotRunner {
 	}
 
 	private static double[][] subsetRows(double[][] x, int[] idx) {
-		double[][] out = new double[idx.length][x[0].length];
+		// Private consumers only read these rows; normalization creates fold-owned rows.
+		double[][] out = new double[idx.length][];
 		for (int i = 0; i < idx.length; i++) {
-			System.arraycopy(x[idx[i]], 0, out[i], 0, x[idx[i]].length);
+			out[i] = x[idx[i]];
 		}
 		return out;
 	}

@@ -15,6 +15,7 @@ public final class PsmDataset {
 	private final ColumnGroups columnGroups;
 	private final List<String> headers;
 	private final String[][] rows;
+	private final String[] tabRows;
 	private final boolean[] targets;
 	private final double[][] features;
 	private final String[] featureNames;
@@ -28,9 +29,36 @@ public final class PsmDataset {
 	 * Builds a typed dataset view from parsed header and row values.
 	 */
 	public PsmDataset(ColumnGroups columnGroups, List<String> headers, String[][] rows) {
+		this(columnGroups, headers, rows, null);
+	}
+
+	/**
+	 * Builds a dataset from rectangular tab-delimited rows, retaining original cell text losslessly.
+	 * The list is copied and no per-cell cache is retained. Ragged protein fields must be normalized first.
+	 * @throws IllegalArgumentException if a row's field count differs from the header count
+	 */
+	public static PsmDataset fromTabRows(ColumnGroups columnGroups, List<String> headers, List<String> tabRows) {
+		String[] rows = tabRows.toArray(String[]::new);
+		for (int row = 0; row < rows.length; row++) {
+			String text = rows[row];
+			int fields = 1;
+			for (int tab = text.indexOf('\t'); tab >= 0; tab = text.indexOf('\t', tab + 1)) {
+				fields++;
+			}
+			if (fields != headers.size()) {
+				throw new IllegalArgumentException(
+					"Invalid tab-delimited row " + row + ": expected=" + headers.size() + " found=" + fields
+				);
+			}
+		}
+		return new PsmDataset(columnGroups, headers, null, rows);
+	}
+
+	private PsmDataset(ColumnGroups columnGroups, List<String> headers, String[][] rows, String[] tabRows) {
 		this.columnGroups = columnGroups;
 		this.headers = List.copyOf(headers);
 		this.rows = rows;
+		this.tabRows = tabRows;
 		this.columnIndex = buildIndex(headers);
 		this.targets = parseTargets();
 		this.featureNames = columnGroups.featureColumns().toArray(String[]::new);
@@ -51,18 +79,23 @@ public final class PsmDataset {
 
 	private boolean[] parseTargets() {
 		int idx = colIndex(columnGroups.targetColumn());
-		boolean[] out = new boolean[rows.length];
-		for (int i = 0; i < rows.length; i++) {
-			out[i] = TargetConverter.toBoolean(rows[i][idx]);
+		boolean[] out = new boolean[size()];
+		for (int i = 0; i < size(); i++) {
+			out[i] = TargetConverter.toBoolean(rawValueAt(i, idx));
 		}
 		return out;
 	}
 
 	private double[][] parseFeatures() {
-		double[][] out = new double[rows.length][featureNames.length];
-		for (int i = 0; i < rows.length; i++) {
+		int[] featureColumns = new int[featureNames.length];
+		for (int j = 0; j < featureNames.length; j++) {
+			featureColumns[j] = colIndex(featureNames[j]);
+		}
+		double[][] out = new double[size()][featureNames.length];
+		for (int i = 0; i < size(); i++) {
+			String[] cells = rows != null ? rows[i] : tabRows[i].split("\t", -1);
 			for (int j = 0; j < featureNames.length; j++) {
-				String value = rows[i][colIndex(featureNames[j])];
+				String value = cells[featureColumns[j]];
 				if (value == null || value.isBlank()) {
 					throw new IllegalArgumentException("Missing value in feature '" + featureNames[j] + "' at row " + i);
 				}
@@ -78,9 +111,9 @@ public final class PsmDataset {
 			return null;
 		}
 		int idx = colIndex(psmGroupColumn);
-		int[] out = new int[rows.length];
-		for (int i = 0; i < rows.length; i++) {
-			String value = rows[i][idx];
+		int[] out = new int[size()];
+		for (int i = 0; i < size(); i++) {
+			String value = rawValueAt(i, idx);
 			if (value == null || value.isBlank()) {
 				throw new IllegalArgumentException("Missing value in psm_group at row " + i);
 			}
@@ -118,7 +151,7 @@ public final class PsmDataset {
 	 * Returns the number of PSM rows in this dataset.
 	 */
 	public int size() {
-		return rows.length;
+		return rows != null ? rows.length : tabRows.length;
 	}
 
 	/**
@@ -189,8 +222,8 @@ public final class PsmDataset {
 		if (localIndex == null) {
 			throw new IllegalArgumentException("Feature not found: " + name);
 		}
-		double[] out = new double[rows.length];
-		for (int i = 0; i < rows.length; i++) {
+		double[] out = new double[size()];
+		for (int i = 0; i < size(); i++) {
 			out[i] = features[i][localIndex];
 		}
 		return out;
@@ -200,7 +233,7 @@ public final class PsmDataset {
 	 * Returns the peptide string for a row.
 	 */
 	public String peptideAt(int idx) {
-		return rows[idx][colIndex(columnGroups.peptideColumn())];
+		return rawValueAt(idx, colIndex(columnGroups.peptideColumn()));
 	}
 
 	/**
@@ -209,7 +242,7 @@ public final class PsmDataset {
 	public String[] spectrumValuesAt(int idx) {
 		String[] out = new String[spectrumColIndices.length];
 		for (int i = 0; i < spectrumColIndices.length; i++) {
-			out[i] = rows[idx][spectrumColIndices[i]];
+			out[i] = rawValueAt(idx, spectrumColIndices[i]);
 		}
 		return out;
 	}
@@ -242,7 +275,19 @@ public final class PsmDataset {
 	 * Returns a raw cell value by row and absolute column index.
 	 */
 	public String rawValueAt(int row, int columnIdx) {
-		return rows[row][columnIdx];
+		if (rows != null) {
+			return rows[row][columnIdx];
+		}
+		String text = tabRows[row];
+		if (columnIdx < 0 || columnIdx >= headers.size()) {
+			throw new ArrayIndexOutOfBoundsException(columnIdx);
+		}
+		int start = 0;
+		for (int col = 0; col < columnIdx; col++) {
+			start = text.indexOf('\t', start) + 1;
+		}
+		int end = text.indexOf('\t', start);
+		return text.substring(start, end < 0 ? text.length() : end);
 	}
 
 	/**
@@ -256,7 +301,7 @@ public final class PsmDataset {
 	 * Returns a cell value by row and column name.
 	 */
 	public String valueAt(int row, String column) {
-		return rows[row][colIndex(column)];
+		return rawValueAt(row, colIndex(column));
 	}
 
 	/**
@@ -274,9 +319,9 @@ public final class PsmDataset {
 	 * Returns a deep copy of the raw PIN rows.
 	 */
 	public String[][] rows() {
-		String[][] copy = new String[rows.length][];
-		for (int i = 0; i < rows.length; i++) {
-			copy[i] = Arrays.copyOf(rows[i], rows[i].length);
+		String[][] copy = new String[size()][];
+		for (int i = 0; i < size(); i++) {
+			copy[i] = rows != null ? Arrays.copyOf(rows[i], rows[i].length) : tabRows[i].split("\t", -1);
 		}
 		return copy;
 	}
@@ -292,7 +337,7 @@ public final class PsmDataset {
 	 * Rebuilds this dataset with alternative column-role inference.
 	 */
 	public PsmDataset withColumnGroups(ColumnGroups newGroups) {
-		return new PsmDataset(newGroups, headers, rows);
+		return new PsmDataset(newGroups, headers, rows, tabRows);
 	}
 
 	private int[] parseSpectrumColIndices() {
