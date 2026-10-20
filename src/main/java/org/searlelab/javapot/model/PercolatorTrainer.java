@@ -4,6 +4,8 @@ import java.math.BigDecimal;
 import java.math.MathContext;
 import java.math.RoundingMode;
 import java.util.Arrays;
+import java.util.concurrent.CancellationException;
+import java.util.concurrent.ExecutorService;
 
 import org.searlelab.javapot.data.PsmDataset;
 import org.searlelab.javapot.stats.ConfidenceMode;
@@ -27,6 +29,27 @@ public final class PercolatorTrainer {
 		int fold,
 		TrainingParams params
 	) {
+		return trainFold(dataset, trainIdx, fold, params, null, false);
+	}
+
+	/**
+	 * Trains one fold with cooperative interruption and optional grid-search helpers.
+	 * This overload is public to support callers in the pipeline package. The existing
+	 * four-argument overload retains legacy execution without interruption checks.
+	 * The caller owns the helper executor, budgets its workers together with fold workers,
+	 * and must terminate its workers before retrying or returning from the invocation.
+	 * A null executor keeps grid evaluation serial while retaining interruption checks.
+	 */
+	public static FoldTrainingOutput trainFold(PsmDataset dataset, int[] trainIdx, int fold,
+		TrainingParams params, ExecutorService helpers) {
+		return trainFold(dataset, trainIdx, fold, params, helpers, true);
+	}
+
+	private static FoldTrainingOutput trainFold(PsmDataset dataset, int[] trainIdx, int fold,
+		TrainingParams params, ExecutorService helpers, boolean interruptible) {
+		if (interruptible && Thread.currentThread().isInterrupted()) {
+			throw new CancellationException("Training interrupted");
+		}
 		double[][] raw = subsetRows(dataset.rawFeatures(), trainIdx);
 		boolean[] targets = subsetTargets(dataset.rawTargets(), trainIdx);
 		String[] featureNames = dataset.featureNames();
@@ -61,7 +84,7 @@ public final class PercolatorTrainer {
 
 		TrainSubset cvSubset = filterLabeled(normShuffled, startShuffled);
 		int cvSeed = rng.nextInt(1, 1_000_000);
-		ClassWeightPair pair = ClassWeightGridSearch.select(cvSubset.x(), cvSubset.y01(), cvSeed);
+		ClassWeightPair pair = ClassWeightGridSearch.select(cvSubset.x(), cvSubset.y01(), cvSeed, helpers, interruptible);
 		log(params, "Fold " + fold + " class_weight = {0: " + pair.negative() + ", 1: " + pair.positive() + "}");
 
 		int[] target = Arrays.copyOf(startShuffled, startShuffled.length);
@@ -69,6 +92,9 @@ public final class PercolatorTrainer {
 		LinearSvmModel model = null;
 		boolean degradedDuringIterations = false;
 		for (int i = 0; i < params.maxIter(); i++) {
+			if (interruptible && Thread.currentThread().isInterrupted()) {
+				throw new CancellationException("Training interrupted");
+			}
 			TrainSubset iterSubset = filterLabeled(normShuffled, target);
 			model = LinearSvmModel.fit(iterSubset.x(), iterSubset.ySigned(), pair.negative(), pair.positive(), 40);
 			double[] scoresShuffled = model.decisionFunction(normShuffled);

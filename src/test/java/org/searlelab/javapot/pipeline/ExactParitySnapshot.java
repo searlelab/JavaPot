@@ -8,6 +8,9 @@ import java.security.DigestOutputStream;
 import java.security.MessageDigest;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 
 import org.searlelab.javapot.cli.CliParser;
 import org.searlelab.javapot.cli.JavaPotOptions;
@@ -30,6 +33,10 @@ public final class ExactParitySnapshot {
 	}
 
 	static String capture(Path directory) throws Exception {
+		return capture(directory, false, 3);
+	}
+
+	static String capture(Path directory, boolean parallelGrid, int workers) throws Exception {
 		Files.createDirectories(directory);
 		Path pin = directory.resolve("exact.pin");
 		StringBuilder text = new StringBuilder("SpecId\tLabel\tScanNr\tpsm_group\tExpMass\tfeatA\tfeatB\tPeptide\tProteins\n");
@@ -41,6 +48,7 @@ public final class ExactParitySnapshot {
 		}
 		Files.writeString(pin, text);
 		MessageDigest digest = MessageDigest.getInstance("SHA-256");
+		ExecutorService directHelpers = parallelGrid && workers > 3 ? Executors.newFixedThreadPool(workers - 3) : null;
 		try (DataOutputStream out = new DataOutputStream(new DigestOutputStream(OutputStream.nullOutputStream(), digest))) {
 			PsmDataset dataset = PinFileParser.read(pin);
 			for (String feature : dataset.featureNames()) {
@@ -55,7 +63,7 @@ public final class ExactParitySnapshot {
 						String name = grouped + "-" + mixmax + "-" + cap;
 						List<String> flags = new ArrayList<>(List.of(pin.toString(), "--dest_dir", directory.resolve(name).toString(),
 							"--quiet", "--train_fdr", "0.5", "--test_fdr", "0.5", "--max_iter", "2", "--seed", "17",
-							"--max_workers", "3", "--subset-max-train", Integer.toString(cap),
+							"--max_workers", Integer.toString(workers), "--subset-max-train", Integer.toString(cap),
 							"--write_model_files", "--write_psm_files", "--write_decoy_files"));
 						if (grouped) {
 							flags.add("--grouped_crossfit");
@@ -89,8 +97,11 @@ public final class ExactParitySnapshot {
 							for (int row : train) {
 								out.writeInt(row);
 							}
-							PercolatorFoldModel model = PercolatorTrainer.trainFold(dataset, train, fold + 1,
-								new TrainingParams(0.5, 2, null, rng.nextLong(), mixmax ? ConfidenceMode.MIXMAX : ConfidenceMode.TDC, true)).model();
+							TrainingParams params = new TrainingParams(0.5, 2, null, rng.nextLong(),
+								mixmax ? ConfidenceMode.MIXMAX : ConfidenceMode.TDC, true);
+							PercolatorFoldModel model = (parallelGrid
+								? PercolatorTrainer.trainFold(dataset, train, fold + 1, params, directHelpers)
+								: PercolatorTrainer.trainFold(dataset, train, fold + 1, params)).model();
 							writeDoubles(out, model.means());
 							writeDoubles(out, model.scales());
 							writeDoubles(out, model.svm().weights());
@@ -100,7 +111,7 @@ public final class ExactParitySnapshot {
 							out.writeBoolean(model.bestFeatureDescending());
 							writeDoubles(out, model.predict(dataset.rawFeatures()));
 						}
-						JavaPotRunResult result = JavaPotApi.run(options);
+						JavaPotRunResult result = parallelGrid ? JavaPotRunner.runForResult(options, true) : JavaPotApi.run(options);
 						for (List<JavaPotPeptide> rows : List.of(result.psms(), result.peptides())) {
 							out.writeInt(rows.size());
 							for (JavaPotPeptide row : rows) {
@@ -115,6 +126,13 @@ public final class ExactParitySnapshot {
 						}
 						out.write(Files.readAllBytes(options.saveModelFile()));
 					}
+				}
+			}
+		} finally {
+			if (directHelpers != null) {
+				directHelpers.shutdownNow();
+				if (!directHelpers.awaitTermination(5, TimeUnit.SECONDS)) {
+					throw new IllegalStateException("Direct fold reference helpers did not terminate");
 				}
 			}
 		}

@@ -5,6 +5,7 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.lang.management.GarbageCollectorMXBean;
 import java.lang.management.ManagementFactory;
+import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -19,6 +20,7 @@ import com.sun.management.OperatingSystemMXBean;
 import com.sun.management.ThreadMXBean;
 
 import org.searlelab.javapot.cli.JavaPotOptions;
+import org.searlelab.javapot.cli.OutputFormat;
 import org.searlelab.javapot.data.PsmDataset;
 import org.searlelab.javapot.io.ModelIO;
 import org.searlelab.javapot.io.PinFileParser;
@@ -59,7 +61,7 @@ public final class PerformanceReplay {
 		}
 		Path warmup = Path.of(args[3]).toRealPath();
 		for (int i = 0; i < 2; i++) {
-			JavaPotApi.run(options(warmup, output.resolve("warmup" + i)));
+			run(options(warmup, output.resolve("warmup" + i)));
 		}
 		System.gc();
 		long gcBefore = gcMillis();
@@ -113,7 +115,7 @@ public final class PerformanceReplay {
 		cpuBefore = cpuNanos();
 		Instant wallStart = Instant.now();
 		start = System.nanoTime();
-		JavaPotRunResult result = JavaPotApi.run(options);
+		JavaPotRunResult result = run(options);
 		long elapsed = System.nanoTime() - start;
 		Instant wallEnd = Instant.now();
 		long gcElapsed = gcMillis() - gcBefore;
@@ -137,8 +139,31 @@ public final class PerformanceReplay {
 
 	private static JavaPotOptions options(Path pin, Path output) throws Exception {
 		Files.createDirectory(output);
-		return new JavaPotOptions(pin, (double) 0.01f, (double) 0.01f, 500000,
-			output.resolve("targets.tsv"), output.resolve("decoys.tsv"), output.resolve("model.tsv"), null, false);
+		return new JavaPotOptions(pin, pin.getParent(), Integer.getInteger("javapot.benchmark.workers", 3),
+			OutputFormat.PERCOLATOR, false, (double) 0.01f, (double) 0.01f, 10, 1L, null, 500000,
+			output.resolve("model.tsv"), false, false, output.resolve("targets.tsv"), output.resolve("decoys.tsv"),
+			null, null, null, 3, 1, false, false);
+	}
+
+	private static JavaPotRunResult run(JavaPotOptions options) throws Exception {
+		if (!Boolean.getBoolean("javapot.benchmark.parallel_grid")) {
+			return JavaPotApi.run(options);
+		}
+		// Reflect only in this cross-version harness; the frozen control has no opt-in entry point.
+		Method method = JavaPotRunner.class.getDeclaredMethod("runForResult", JavaPotOptions.class, boolean.class);
+		method.setAccessible(true);
+		try {
+			return (JavaPotRunResult) method.invoke(null, options, true);
+		} catch (InvocationTargetException failure) {
+			Throwable cause = failure.getCause();
+			if (cause instanceof RuntimeException) {
+				throw (RuntimeException) cause;
+			}
+			if (cause instanceof Error) {
+				throw (Error) cause;
+			}
+			throw new IllegalStateException("Benchmark execution failed", cause);
+		}
 	}
 
 	private static void runKernel(Path pin, Path output) throws Exception {

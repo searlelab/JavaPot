@@ -15,6 +15,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 
 import gnu.trove.set.hash.THashSet;
 import org.searlelab.javapot.cli.JavaPotOptions;
@@ -70,6 +71,11 @@ public final class JavaPotRunner {
 	 * Executes the full JavaPot pipeline and returns programmatic peptide/PSM confidence outputs.
 	 */
 	public static JavaPotRunResult runForResult(JavaPotOptions config) {
+		return runForResult(config, false);
+	}
+
+	// Experimental invocation-owned grid scheduling; no public default or CLI change.
+	static JavaPotRunResult runForResult(JavaPotOptions config, boolean parallelGrid) {
 		log(config, "JavaPot starting");
 		long parseStart = PipelineTiming.start();
 		PsmDataset dataset = PinFileParser.read(config.pinFile());
@@ -104,7 +110,7 @@ public final class JavaPotRunner {
 			DeterministicRandom rng = new DeterministicRandom(config.seed());
 			int[][] folds = splitFolds(dataset, config, rng);
 			try {
-				models = trainModels(dataset, folds, config, rng);
+				models = trainModels(dataset, folds, config, rng, parallelGrid);
 				finalScores = predictRawScores(dataset, folds, models);
 			} catch (RuntimeException e) {
 				if (!isNoTrainingPassFailure(e)) {
@@ -139,7 +145,7 @@ public final class JavaPotRunner {
 				DeterministicRandom rng = new DeterministicRandom(config.seed());
 				int[][] folds = splitFolds(dataset, config, rng);
 				try {
-					models = trainModels(dataset, folds, config, rng);
+					models = trainModels(dataset, folds, config, rng, parallelGrid);
 					double[] scores = predictScores(dataset, folds, models, config.testFdr());
 					finalScores = maybeFallbackToBestFeature(
 						dataset,
@@ -156,7 +162,8 @@ public final class JavaPotRunner {
 						config,
 						confidenceMode,
 						startChoice,
-						e
+						e,
+						parallelGrid
 					);
 					models = recovery.models();
 					forceNoDetections = recovery.forceNoDetections();
@@ -352,57 +359,104 @@ public final class JavaPotRunner {
 		PsmDataset dataset,
 		int[][] folds,
 		JavaPotOptions config,
-		DeterministicRandom rng
+		DeterministicRandom rng,
+		boolean parallelGrid
 	) {
 		long trainingStart = PipelineTiming.start();
+		if (parallelGrid && Thread.currentThread().isInterrupted()) {
+			throw new RuntimeException("Training interrupted", new InterruptedException("Training interrupted"));
+		}
 		log(config, "Splitting PSMs into " + config.folds() + " folds...");
-		List<Callable<FoldTrainingOutput>> tasks = new ArrayList<>(folds.length);
-		for (int fi = 0; fi < folds.length; fi++) {
-			int fold = fi + 1;
-			int[] trainIdx = complement(dataset.size(), folds[fi]);
-			trainIdx = maybeSubsetTrain(trainIdx, config.subsetMaxTrain(), rng);
-			long foldSeed = rng.nextLong();
-			TrainingParams params = new TrainingParams(
-				config.trainFdr(),
-				config.maxIter(),
-				config.direction(),
-				foldSeed,
-				config.mixmax() ? ConfidenceMode.MIXMAX : ConfidenceMode.TDC,
-				config.quiet()
-			);
-			final int[] trainCopy = Arrays.copyOf(trainIdx, trainIdx.length);
-			tasks.add(() -> {
-				log(config, "Analyzing Fold " + fold + "...");
-				return PercolatorTrainer.trainFold(dataset, trainCopy, fold, params);
-			});
-		}
+		int outerWorkers = Math.min(config.maxWorkers(), folds.length);
+		int helperWorkers = parallelGrid ? config.maxWorkers() - outerWorkers : 0;
+		ExecutorService helpers = helperWorkers > 0 ? Executors.newFixedThreadPool(helperWorkers) : null;
+		ExecutorService pool = Executors.newFixedThreadPool(outerWorkers);
+		List<Future<FoldTrainingOutput>> futures = new ArrayList<>(folds.length);
+		try {
+			List<Callable<FoldTrainingOutput>> tasks = new ArrayList<>(folds.length);
+			for (int fi = 0; fi < folds.length; fi++) {
+				int fold = fi + 1;
+				int[] trainIdx = complement(dataset.size(), folds[fi]);
+				trainIdx = maybeSubsetTrain(trainIdx, config.subsetMaxTrain(), rng);
+				long foldSeed = rng.nextLong();
+				TrainingParams params = new TrainingParams(
+					config.trainFdr(),
+					config.maxIter(),
+					config.direction(),
+					foldSeed,
+					config.mixmax() ? ConfidenceMode.MIXMAX : ConfidenceMode.TDC,
+					config.quiet()
+				);
+				final int[] trainCopy = Arrays.copyOf(trainIdx, trainIdx.length);
+				tasks.add(() -> {
+					log(config, "Analyzing Fold " + fold + "...");
+					return parallelGrid
+						? PercolatorTrainer.trainFold(dataset, trainCopy, fold, params, helpers)
+						: PercolatorTrainer.trainFold(dataset, trainCopy, fold, params);
+				});
+			}
 
-		ExecutorService pool = Executors.newFixedThreadPool(Math.min(config.maxWorkers(), tasks.size()));
-		List<Future<FoldTrainingOutput>> futures = new ArrayList<>(tasks.size());
-		for (Callable<FoldTrainingOutput> task : tasks) {
-			futures.add(pool.submit(task));
-		}
-		pool.shutdown();
+			for (Callable<FoldTrainingOutput> task : tasks) {
+				futures.add(pool.submit(task));
+			}
+			pool.shutdown();
 
-		List<FoldTrainingOutput> outputs = new ArrayList<>(futures.size());
-		for (Future<FoldTrainingOutput> future : futures) {
-			try {
-				outputs.add(future.get());
-			} catch (InterruptedException e) {
-				Thread.currentThread().interrupt();
-				throw new RuntimeException("Training interrupted", e);
-			} catch (ExecutionException e) {
-				throw new RuntimeException("Training failed", e.getCause());
+			List<FoldTrainingOutput> outputs = new ArrayList<>(futures.size());
+			for (Future<FoldTrainingOutput> future : futures) {
+				try {
+					if (parallelGrid && Thread.currentThread().isInterrupted()) {
+						throw new InterruptedException("Training interrupted");
+					}
+					outputs.add(future.get());
+				} catch (InterruptedException e) {
+					Thread.currentThread().interrupt();
+					throw new RuntimeException("Training interrupted", e);
+				} catch (ExecutionException e) {
+					throw new RuntimeException("Training failed", e.getCause());
+				}
+			}
+
+			outputs.sort(Comparator.comparingInt(o -> o.model().fold()));
+			List<PercolatorFoldModel> models = new ArrayList<>(outputs.size());
+			for (FoldTrainingOutput out : outputs) {
+				models.add(out.model());
+			}
+			PipelineTiming.record("training", trainingStart);
+			return models;
+		} finally {
+			if (parallelGrid) {
+				for (Future<FoldTrainingOutput> future : futures) {
+					if (!future.isDone()) {
+						future.cancel(true);
+					}
+				}
+				stopWorkers(pool);
+				if (helpers != null) {
+					stopWorkers(helpers);
+				}
+			} else {
+				// Legacy workers are not interruptible; preserve prompt caller failure/return.
+				pool.shutdown();
 			}
 		}
+	}
 
-		outputs.sort(Comparator.comparingInt(o -> o.model().fold()));
-		List<PercolatorFoldModel> models = new ArrayList<>(outputs.size());
-		for (FoldTrainingOutput out : outputs) {
-			models.add(out.model());
+	private static void stopWorkers(ExecutorService pool) {
+		boolean interrupted = Thread.interrupted();
+		pool.shutdownNow();
+		try {
+			while (!pool.isTerminated()) {
+				try {
+					pool.awaitTermination(1, TimeUnit.SECONDS);
+				} catch (InterruptedException e) {
+					interrupted = true;
+				}
+			}
+		} finally {
+			if (interrupted) {
+				Thread.currentThread().interrupt();
+			}
 		}
-		PipelineTiming.record("training", trainingStart);
-		return models;
 	}
 
 	private static int[] maybeSubsetTrain(int[] trainIdx, int subsetMaxTrain, DeterministicRandom rng) {
@@ -497,7 +551,8 @@ public final class JavaPotRunner {
 		JavaPotOptions config,
 		ConfidenceMode confidenceMode,
 		FeatureStartChoice startChoice,
-		RuntimeException trainingError
+		RuntimeException trainingError,
+		boolean parallelGrid
 	) {
 		if (!isNoTrainingPassFailure(trainingError)) {
 			throw trainingError;
@@ -512,7 +567,7 @@ public final class JavaPotRunner {
 			try {
 				DeterministicRandom retryRng = new DeterministicRandom(retrySeed);
 				int[][] retryFolds = splitFolds(dataset, config, retryRng);
-				List<PercolatorFoldModel> retryModels = trainModels(dataset, retryFolds, config, retryRng);
+				List<PercolatorFoldModel> retryModels = trainModels(dataset, retryFolds, config, retryRng, parallelGrid);
 				double[] retryScores = config.groupedCrossfit()
 					? predictRawScores(dataset, retryFolds, retryModels)
 					: predictScores(dataset, retryFolds, retryModels, config.testFdr());

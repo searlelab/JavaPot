@@ -1,5 +1,13 @@
 package org.searlelab.javapot.model;
 
+import java.util.ArrayList;
+import java.util.List;
+import java.util.concurrent.CancellationException;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.FutureTask;
+import java.util.function.IntToDoubleFunction;
+
 import org.searlelab.javapot.util.DeterministicRandom;
 
 /**
@@ -32,7 +40,7 @@ public final class ClassWeightGridSearch {
 		double bestScore = Double.NEGATIVE_INFINITY;
 		for (double neg : GRID) {
 			for (double pos : GRID) {
-				double score = evaluate(splits, neg, pos);
+				double score = evaluate(splits, neg, pos, false);
 				if (score > bestScore) {
 					bestScore = score;
 					best = new ClassWeightPair(neg, pos);
@@ -46,9 +54,118 @@ public final class ClassWeightGridSearch {
 		return best;
 	}
 
-	private static double evaluate(CvSplit[] splits, double neg, double pos) {
+	static ClassWeightPair select(double[][] x, int[] y01, long seed, ExecutorService helpers) {
+		return select(x, y01, seed, helpers, helpers != null);
+	}
+
+	static ClassWeightPair select(double[][] x, int[] y01, long seed, ExecutorService helpers, boolean interruptible) {
+		if (helpers == null && !interruptible) {
+			return select(x, y01, seed);
+		}
+		if (x.length != y01.length) {
+			throw new IllegalArgumentException("X/Y mismatch in grid search");
+		}
+		if (x.length < 3) {
+			return new ClassWeightPair(1.0, 1.0);
+		}
+
+		double[] scores = scores(x, y01, seed, helpers, interruptible);
+		ClassWeightPair best = null;
+		double bestScore = Double.NEGATIVE_INFINITY;
+		int ordinal = 0;
+		for (double neg : GRID) {
+			for (double pos : GRID) {
+				double score = scores[ordinal++];
+				if (score > bestScore) {
+					bestScore = score;
+					best = new ClassWeightPair(neg, pos);
+				}
+			}
+		}
+
+		if (best == null) {
+			throw new IllegalStateException("Failed to select class weights");
+		}
+		return best;
+	}
+
+	// The caller owns the bounded helper pool; the outer-fold worker participates too.
+	static double[] scores(double[][] x, int[] y01, long seed, ExecutorService helpers) {
+		return scores(x, y01, seed, helpers, helpers != null);
+	}
+
+	private static double[] scores(double[][] x, int[] y01, long seed, ExecutorService helpers, boolean interruptible) {
+		DeterministicRandom rng = new DeterministicRandom(seed);
+		int[] perm = rng.permutation(x.length);
+		int[][] folds = splitContiguous(perm, 3);
+		CvSplit[] splits = buildCvSplits(x, y01, folds);
+		return evaluatePairs(ordinal -> evaluate(splits, GRID[ordinal / GRID.length], GRID[ordinal % GRID.length], interruptible), helpers);
+	}
+
+	static double[] evaluatePairs(IntToDoubleFunction evaluation, ExecutorService helpers) {
+		double[] scores = new double[GRID.length * GRID.length];
+		if (helpers == null) {
+			for (int i = 0; i < scores.length; i++) {
+				scores[i] = evaluation.applyAsDouble(i);
+			}
+			return scores;
+		}
+		List<FutureTask<Double>> tasks = new ArrayList<>(scores.length);
+		try {
+			for (int i = 0; i < scores.length; i++) {
+				final int ordinal = i;
+				FutureTask<Double> task = new FutureTask<>(() -> evaluation.applyAsDouble(ordinal));
+				tasks.add(task);
+				// Reserve the first pair for this fold worker so helpers cannot claim every pair.
+				if (i > 0) {
+					helpers.execute(task);
+				}
+			}
+			// FutureTask runs at most once, including when already queued on a helper.
+			// Calling run here prevents parked fold workers from wasting their budget.
+			for (FutureTask<Double> task : tasks) {
+				checkInterrupted();
+				task.run();
+			}
+			for (int i = 0; i < scores.length; i++) {
+				try {
+					scores[i] = tasks.get(i).get();
+				} catch (InterruptedException e) {
+					Thread.currentThread().interrupt();
+					throw new CancellationException("Grid search interrupted");
+				} catch (ExecutionException e) {
+					Throwable cause = e.getCause();
+					if (cause instanceof RuntimeException) {
+						throw (RuntimeException) cause;
+					}
+					if (cause instanceof Error) {
+						throw (Error) cause;
+					}
+					throw new IllegalStateException("Grid search failed", cause);
+				}
+			}
+			return scores;
+		} finally {
+			for (FutureTask<Double> task : tasks) {
+				if (!task.isDone()) {
+					task.cancel(true);
+				}
+			}
+		}
+	}
+
+	private static void checkInterrupted() {
+		if (Thread.currentThread().isInterrupted()) {
+			throw new CancellationException("Grid search interrupted");
+		}
+	}
+
+	private static double evaluate(CvSplit[] splits, double neg, double pos, boolean interruptible) {
 		double total = 0.0;
 		for (CvSplit split : splits) {
+			if (interruptible) {
+				checkInterrupted();
+			}
 			LinearSvmModel model = LinearSvmModel.fit(
 				split.xTrain(),
 				split.yTrainSigned(),
