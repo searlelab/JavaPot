@@ -111,7 +111,7 @@ public final class ExactParitySnapshot {
 							out.writeBoolean(model.bestFeatureDescending());
 							writeDoubles(out, model.predict(dataset.rawFeatures()));
 						}
-						JavaPotRunResult result = parallelGrid ? JavaPotRunner.runForResult(options, true) : JavaPotApi.run(options);
+						JavaPotRunResult result = parallelGrid ? JavaPotApi.run(options) : JavaPotRunner.runForResult(options, false);
 						for (List<JavaPotPeptide> rows : List.of(result.psms(), result.peptides())) {
 							out.writeInt(rows.size());
 							for (JavaPotPeptide row : rows) {

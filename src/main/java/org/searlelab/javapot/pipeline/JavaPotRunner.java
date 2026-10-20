@@ -71,10 +71,13 @@ public final class JavaPotRunner {
 	 * Executes the full JavaPot pipeline and returns programmatic peptide/PSM confidence outputs.
 	 */
 	public static JavaPotRunResult runForResult(JavaPotOptions config) {
-		return runForResult(config, false);
+		if (config.maxWorkers() < 1) {
+			throw new IllegalArgumentException("maxWorkers must be >= 1");
+		}
+		return runForResult(config, true);
 	}
 
-	// Experimental invocation-owned grid scheduling; no public default or CLI change.
+	// The fold-only path remains an internal oracle for differential tests and replays.
 	static JavaPotRunResult runForResult(JavaPotOptions config, boolean parallelGrid) {
 		log(config, "JavaPot starting");
 		long parseStart = PipelineTiming.start();

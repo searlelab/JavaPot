@@ -5,7 +5,7 @@
 
 	<groupId>org.searlelab</groupId>
 	<artifactId>javapot</artifactId>
-	<version>6.10.20</version>
+	<version>26.10.20</version>
 	<name>JavaPot</name>
 	<description>Java clone of mokapot main Percolator path for PIN input.</description>
 	<url>https://github.com/searlelab/JavaPot</url>

@@ -13,6 +13,7 @@ public final class JavaPotOptions {
 	public static final int DEFAULT_MAX_ITER = 10;
 	public static final long DEFAULT_SEED = 1L;
 	public static final int DEFAULT_FOLDS = 3;
+	public static final int DEFAULT_MAX_WORKERS = Runtime.getRuntime().availableProcessors();
 	public static final int DEFAULT_MAX_RETRIES = 1;
 	public static final int DEFAULT_SUBSET_MAX_TRAIN = 0;
 
@@ -107,7 +108,7 @@ public final class JavaPotOptions {
 		this(
 			pinFile,
 			defaultOutputDir(pinFile),
-			DEFAULT_FOLDS,
+			DEFAULT_MAX_WORKERS,
 			OutputFormat.PERCOLATOR,
 			false,
 			trainFdr,

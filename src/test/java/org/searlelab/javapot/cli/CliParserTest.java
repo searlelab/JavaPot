@@ -19,7 +19,7 @@ class CliParserTest {
 		JavaPotOptions cfg = CliParser.parse(new String[]{"/tmp/test.pin"});
 		assertEquals(Paths.get("/tmp/test.pin"), cfg.pinFile());
 		assertEquals(Paths.get("/tmp"), cfg.destDir());
-		assertEquals(3, cfg.maxWorkers());
+		assertEquals(Runtime.getRuntime().availableProcessors(), cfg.maxWorkers());
 		assertEquals(OutputFormat.PERCOLATOR, cfg.outputFormat());
 		assertFalse(cfg.quiet());
 		assertEquals(0.01, cfg.trainFdr());
@@ -66,20 +66,20 @@ class CliParserTest {
 		JavaPotOptions cfg = CliParser.parse(new String[]{"input.pin", "--load_models", "m1.model.tsv", "--folds", "2"});
 		assertEquals(Paths.get("m1.model.tsv"), cfg.loadModelFile());
 		assertEquals(2, cfg.folds());
-		assertEquals(2, cfg.maxWorkers());
+		assertEquals(Runtime.getRuntime().availableProcessors(), cfg.maxWorkers());
 		assertEquals(OutputFormat.PERCOLATOR, cfg.outputFormat());
 	}
 
 	@Test
-	void defaultsMaxWorkersToFoldsWhenOmitted() {
+	void defaultsMaxWorkersToAvailableProcessorsIndependentlyOfFolds() {
 		JavaPotOptions cfg = CliParser.parse(new String[]{"input.pin", "--folds", "7"});
 		assertEquals(7, cfg.folds());
-		assertEquals(7, cfg.maxWorkers());
+		assertEquals(Runtime.getRuntime().availableProcessors(), cfg.maxWorkers());
 		assertEquals(OutputFormat.PERCOLATOR, cfg.outputFormat());
 	}
 
 	@Test
-	void explicitMaxWorkersOverridesFoldsDefaulting() {
+	void explicitMaxWorkersOverridesProcessorDefault() {
 		JavaPotOptions cfg = CliParser.parse(new String[]{"input.pin", "--folds", "7", "--max_workers", "2"});
 		assertEquals(7, cfg.folds());
 		assertEquals(2, cfg.maxWorkers());

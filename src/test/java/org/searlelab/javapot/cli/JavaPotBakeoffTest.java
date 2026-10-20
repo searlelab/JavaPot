@@ -46,7 +46,7 @@ class JavaPotBakeoffTest {
 		assertEquals(0.1, config.minImprovementPercent());
 		assertEquals(0, config.subsetMaxTrain());
 		assertEquals(JavaPotOptions.DEFAULT_FOLDS, config.folds());
-		assertEquals(JavaPotOptions.DEFAULT_FOLDS, config.maxWorkers());
+		assertEquals(Runtime.getRuntime().availableProcessors(), config.maxWorkers());
 	}
 
 	@Test

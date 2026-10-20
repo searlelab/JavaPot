@@ -49,7 +49,7 @@ class ParallelGridRecoveryTest {
 			JavaPotOptions options = CliParser.parse(new String[]{pin.toString(), "--dest_dir", out.toString(), "--quiet",
 				"--max_workers", Integer.toString(workers), "--max_iter", "3", "--seed", "17", "--write_model_files"});
 			Set<Long> before = poolThreads();
-			JavaPotRunResult result = JavaPotRunner.runForResult(options, true);
+			JavaPotRunResult result = JavaPotApi.run(options);
 			for (JavaPotPeptide row : result.psms()) {
 				assertEquals(1.0, row.qValue());
 				assertEquals(1.0, row.pep());
@@ -83,6 +83,23 @@ class ParallelGridRecoveryTest {
 			InvocationTargetException failure = assertThrows(InvocationTargetException.class,
 				() -> trainingMethod().invoke(null, fixture.dataset, fixture.folds, fixture.options, fixture.rng, true));
 			assertEquals("Training interrupted", failure.getCause().getMessage());
+			assertTrue(Thread.currentThread().isInterrupted());
+		} finally {
+			Thread.interrupted();
+		}
+		assertNoNewPoolThreads(before);
+	}
+
+	@Test
+	@Timeout(20)
+	void defaultApiRejectsInterruptedTrainingWithoutStartingWorkers() throws Exception {
+		Fixture fixture = fixture();
+		Set<Long> before = poolThreads();
+		try {
+			Thread.currentThread().interrupt();
+			RuntimeException failure = assertThrows(RuntimeException.class, () -> JavaPotApi.run(fixture.options));
+			assertEquals("Training interrupted", failure.getMessage());
+			assertTrue(failure.getCause() instanceof InterruptedException);
 			assertTrue(Thread.currentThread().isInterrupted());
 		} finally {
 			Thread.interrupted();

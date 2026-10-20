@@ -6,7 +6,7 @@ JavaPot is a Java clone of Dr. Will Fondrie's mokapot main code path for Percola
 - Percolator-style semisupervised learning with a linear support vector machine classifier.
 - Single-input-file workflow: one PIN file per run (no XML/PepXML input).
 - Deterministic seeded behavior across fold splitting, training, and model selection.
-- Optional multithreaded fold training via `--max_workers`.
+- Bounded parallel fold and cost-grid training, using JVM available processors by default; override with `--max_workers`.
 - Percolator-style output headers by default, with optional mokapot-style output naming via `--output_format mokapot`.
 - Model persistence with `--write_model_files` / `--weights` and `--load_models` / `--init-weights`.
 - Confidence output tables written with `<pin_name>` prefixes (for example, `sample.peptides.tsv`).
@@ -36,7 +36,7 @@ Options:
   -d DEST_DIR, --dest_dir DEST_DIR
                         The directory in which to write the result files. Defaults to the input PIN directory.
   -w MAX_WORKERS, --max_workers MAX_WORKERS
-                        The number of processes to use for model training. Defaults to --folds when omitted. Note that using more than one worker will result in garbled logging messages.
+                        Total training-worker budget shared by folds and grid helpers. Defaults to the processors available to the JVM.
   --output_format OUTPUT_FORMAT
                         Output TSV schema to write: percolator (default) or mokapot.
   --quiet               Suppress progress/status logging output.
@@ -97,6 +97,20 @@ JavaPotRunResult result = JavaPotApi.run(options);
 // result.peptides() / result.psms() are ArrayList<JavaPotPeptide>
 // result.psmPi0() and result.peptidePi0() are populated in mixmax mode (null in TDC mode)
 ```
+
+`JavaPotApi.run(options)` and the CLI use bounded parallel cost-grid training by
+default. The total training-worker budget is shared between fold workers and grid
+helpers. It defaults to `Runtime.getRuntime().availableProcessors()` (logical
+processors visible to the JVM, including its container or processor-count limits),
+independently of the number of cross-validation folds. Set a positive `maxWorkers`
+using the full `JavaPotOptions` constructor, or `--max_workers` in the CLI/Bakeoff,
+to override it. `JavaPotApi.runWithParallelGrid(options)` remains an equivalent
+compatibility alias.
+
+The Maven coordinates for this release are `org.searlelab:javapot:26.10.20`.
+Run `mvn clean install` to validate and install locally. To publish the release to
+the configured GitHub Packages repository, run `mvn clean deploy` with Maven
+credentials for server ID `github`.
 
 `JavaPotPeptide` exposes: `score`, `qValue`, `pep`, `isDecoy`, `psmId`, and `peptideSequence`.
 

@@ -1,5 +1,6 @@
 package org.searlelab.javapot.pipeline;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -39,7 +40,7 @@ class JavaPotApiTest {
 
 		assertTrue(options.pinFile().equals(pinFile));
 		assertTrue(options.destDir().equals(pinFile.toAbsolutePath().normalize().getParent()));
-		assertTrue(options.maxWorkers() == JavaPotOptions.DEFAULT_FOLDS);
+		assertTrue(options.maxWorkers() == Runtime.getRuntime().availableProcessors());
 		assertTrue(options.outputFormat() == OutputFormat.PERCOLATOR);
 		assertFalse(options.quiet());
 		assertTrue(options.trainFdr() == 0.02);
@@ -75,6 +76,11 @@ class JavaPotApiTest {
 		);
 
 		JavaPotRunResult result = JavaPotApi.run(options);
+		JavaPotRunResult alias = JavaPotApi.runWithParallelGrid(options);
+		assertEquals(result.psms(), alias.psms());
+		assertEquals(result.peptides(), alias.peptides());
+		assertEquals(result.psmPi0(), alias.psmPi0());
+		assertEquals(result.peptidePi0(), alias.peptidePi0());
 		assertNotNull(result);
 		assertNotNull(result.peptides());
 		assertNotNull(result.psms());

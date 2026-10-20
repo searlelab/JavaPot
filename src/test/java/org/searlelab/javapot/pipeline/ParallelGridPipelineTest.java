@@ -19,7 +19,7 @@ class ParallelGridPipelineTest {
 	@Test
 	void allBudgetsPreserveFrozenModelsAndOrderedApiOutput() throws Exception {
 		String expected = Files.readString(Path.of("src/test/resources/data/performance-baseline.sha256")).trim();
-		for (int workers : new int[]{1, 2, 3, 6, 12, 24}) {
+		for (int workers : new int[]{1, 2, 3, 6, 12, 24, 32}) {
 			assertEquals(expected, ExactParitySnapshot.capture(directory.resolve("workers-" + workers), true, workers));
 		}
 	}

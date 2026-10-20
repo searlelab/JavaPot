@@ -166,7 +166,7 @@ public final class JavaPotBakeoff {
 
 		List<String> requiredStartFeatures = parseCommaSeparatedFeatures(requiredStartFeaturesRaw, "--direction");
 		String direction = requiredStartFeatures.get(0);
-		int resolvedMaxWorkers = maxWorkers != null ? maxWorkers : folds;
+		int resolvedMaxWorkers = maxWorkers != null ? maxWorkers : JavaPotOptions.DEFAULT_MAX_WORKERS;
 		return new BakeoffConfig(
 			featureSetDir,
 			inputPins,
@@ -200,7 +200,7 @@ public final class JavaPotBakeoff {
 			"  --seed SEED           Random seed for deterministic fold splits/training. Default: 1.",
 			"  --subset-max-train N  Maximum PSMs used for fold training. Use 0 for all PSMs. Default: 0.",
 			"  --folds FOLDS         Number of cross-validation folds. Default: 3.",
-			"  -w, --max_workers N   Number of training workers (defaults to --folds).",
+			"  -w, --max_workers N   Total training-worker budget (defaults to JVM available processors).",
 			"  --max_retries N       Re-fold retries after no-label fold failures. Default: 1.",
 			"  --mixmax, --post-processing-mix-max",
 			"                        Use Percolator mix-max post-processing.",

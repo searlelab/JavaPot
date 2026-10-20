@@ -146,14 +146,21 @@ public final class PerformanceReplay {
 	}
 
 	private static JavaPotRunResult run(JavaPotOptions options) throws Exception {
-		if (!Boolean.getBoolean("javapot.benchmark.parallel_grid")) {
+		boolean parallelGrid = Boolean.getBoolean("javapot.benchmark.parallel_grid");
+		// Keep control selection explicit even after the public default changes.
+		// Reflect only in this cross-version harness; the frozen control has no boolean overload.
+		Method method;
+		try {
+			method = JavaPotRunner.class.getDeclaredMethod("runForResult", JavaPotOptions.class, boolean.class);
+		} catch (NoSuchMethodException missing) {
+			if (parallelGrid) {
+				throw missing;
+			}
 			return JavaPotApi.run(options);
 		}
-		// Reflect only in this cross-version harness; the frozen control has no opt-in entry point.
-		Method method = JavaPotRunner.class.getDeclaredMethod("runForResult", JavaPotOptions.class, boolean.class);
 		method.setAccessible(true);
 		try {
-			return (JavaPotRunResult) method.invoke(null, options, true);
+			return (JavaPotRunResult) method.invoke(null, options, parallelGrid);
 		} catch (InvocationTargetException failure) {
 			Throwable cause = failure.getCause();
 			if (cause instanceof RuntimeException) {

@@ -173,7 +173,7 @@ public final class CliParser {
 		if (testFdr <= 0 || testFdr >= 1) {
 			throw new IllegalArgumentException("--test_fdr must be in (0,1)");
 		}
-		int resolvedMaxWorkers = maxWorkers != null ? maxWorkers.intValue() : folds;
+		int resolvedMaxWorkers = maxWorkers != null ? maxWorkers.intValue() : JavaPotOptions.DEFAULT_MAX_WORKERS;
 		Path resolvedSaveModelFile = saveModelFile;
 		if (resolvedSaveModelFile == null && writeModelFiles) {
 			resolvedSaveModelFile = ModelIO.defaultModelPath(pinFile, resolvedDestDir);
@@ -217,7 +217,7 @@ public final class CliParser {
 			"  -d DEST_DIR, --dest_dir DEST_DIR",
 			"                        The directory in which to write the result files. Defaults to the input PIN directory.",
 			"  -w MAX_WORKERS, --max_workers MAX_WORKERS",
-			"                        The number of processes to use for model training. Defaults to --folds when omitted. Note that using more than one worker will result in garbled logging messages.",
+			"                        Total training-worker budget shared by folds and grid helpers. Defaults to the processors available to the JVM.",
 			"  --output_format OUTPUT_FORMAT",
 			"                        Output TSV schema to write: percolator (default) or mokapot.",
 			"  --quiet               Suppress progress/status logging output.",
