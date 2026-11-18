@@ -40,6 +40,7 @@ public final class JavaPotOptions {
 	private final int maxRetries;
 	private final boolean mixmax;
 	private final boolean groupedCrossfit;
+	private final boolean alreadyCompetedInput;
 
 	public JavaPotOptions(
 		Path pinFile,
@@ -65,6 +66,41 @@ public final class JavaPotOptions {
 		int maxRetries,
 		boolean mixmax,
 		boolean groupedCrossfit
+	) {
+		this(
+			pinFile, destDir, maxWorkers, outputFormat, quiet,
+			trainFdr, testFdr, maxIter, seed, direction,
+			subsetMaxTrain, saveModelFile, writePsmFiles, writeDecoyFiles, resultsPeptides,
+			decoyResultsPeptides, resultsPsms, decoyResultsPsms, loadModelFile, folds,
+			maxRetries, mixmax, groupedCrossfit, false
+		);
+	}
+
+	private JavaPotOptions(
+		Path pinFile,
+		Path destDir,
+		int maxWorkers,
+		OutputFormat outputFormat,
+		boolean quiet,
+		double trainFdr,
+		double testFdr,
+		int maxIter,
+		long seed,
+		String direction,
+		int subsetMaxTrain,
+		Path saveModelFile,
+		boolean writePsmFiles,
+		boolean writeDecoyFiles,
+		Path resultsPeptides,
+		Path decoyResultsPeptides,
+		Path resultsPsms,
+		Path decoyResultsPsms,
+		Path loadModelFile,
+		int folds,
+		int maxRetries,
+		boolean mixmax,
+		boolean groupedCrossfit,
+		boolean alreadyCompetedInput
 	) {
 		if (subsetMaxTrain < 0) {
 			throw new IllegalArgumentException("subsetMaxTrain must be >= 0");
@@ -92,6 +128,10 @@ public final class JavaPotOptions {
 		this.maxRetries = maxRetries;
 		this.mixmax = mixmax;
 		this.groupedCrossfit = groupedCrossfit;
+		if (alreadyCompetedInput && mixmax) {
+			throw new IllegalArgumentException("Already-competed input requires TDC confidence");
+		}
+		this.alreadyCompetedInput = alreadyCompetedInput;
 	}
 
 	public JavaPotOptions(
@@ -195,6 +235,25 @@ public final class JavaPotOptions {
 			return parent;
 		}
 		return Paths.get(".").toAbsolutePath().normalize();
+	}
+
+
+	/**
+	 * Caller asserts target/decoy competition is complete. Preserve independent
+	 * precursor winners sharing a spectrum; retain normal folds and peptide selection.
+	 */
+	public JavaPotOptions withAlreadyCompetedInput() {
+		return new JavaPotOptions(
+			pinFile, destDir, maxWorkers, outputFormat, quiet,
+			trainFdr, testFdr, maxIter, seed, direction,
+			subsetMaxTrain, saveModelFile, writePsmFiles, writeDecoyFiles, resultsPeptides,
+			decoyResultsPeptides, resultsPsms, decoyResultsPsms, loadModelFile, folds,
+			maxRetries, mixmax, groupedCrossfit, true
+		);
+	}
+
+	public boolean alreadyCompetedInput() {
+		return alreadyCompetedInput;
 	}
 
 	public Path pinFile() {
@@ -310,6 +369,7 @@ public final class JavaPotOptions {
 			&& maxRetries == other.maxRetries
 			&& mixmax == other.mixmax
 			&& groupedCrossfit == other.groupedCrossfit
+			&& alreadyCompetedInput == other.alreadyCompetedInput
 			&& Objects.equals(pinFile, other.pinFile)
 			&& Objects.equals(destDir, other.destDir)
 			&& outputFormat == other.outputFormat
@@ -348,7 +408,8 @@ public final class JavaPotOptions {
 			folds,
 			maxRetries,
 			mixmax,
-			groupedCrossfit
+			groupedCrossfit,
+			alreadyCompetedInput
 		);
 	}
 
@@ -377,7 +438,8 @@ public final class JavaPotOptions {
 			"folds=" + folds + ", " +
 			"maxRetries=" + maxRetries + ", " +
 			"mixmax=" + mixmax + ", " +
-			"groupedCrossfit=" + groupedCrossfit +
+			"groupedCrossfit=" + groupedCrossfit + ", " +
+			"alreadyCompetedInput=" + alreadyCompetedInput +
 			"]";
 	}
 }

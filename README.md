@@ -112,6 +112,8 @@ Run `mvn clean install` to validate and install locally. To publish the release 
 the configured GitHub Packages repository, run `mvn clean deploy` with Maven
 credentials for server ID `github`.
 
+For caller-competed TDC input, use `options.withAlreadyCompetedInput()`. This preserves independent precursor winners sharing a spectrum, while retaining normal fold assignment and peptide representative selection. Existing constructors retain spectrum competition; this explicit option rejects mix-max.
+
 `JavaPotPeptide` exposes: `score`, `qValue`, `pep`, `isDecoy`, `psmId`, and `peptideSequence`.
 
 For inputs exceeding one million PSMs, `--subset-max-train N` (also available in Bakeoff)

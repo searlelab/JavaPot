@@ -183,6 +183,7 @@ public final class JavaPotRunner {
 			confidenceMode,
 			config.seed(),
 			forceNoDetections,
+			config.alreadyCompetedInput(),
 			outputPlan
 		);
 
@@ -754,10 +755,11 @@ public final class JavaPotRunner {
 		ConfidenceMode confidenceMode,
 		long seed,
 		boolean forceNoDetections,
+		boolean alreadyCompetedInput,
 		OutputPlan outputPlan
 	) {
 		long selectionStart = PipelineTiming.start();
-		int[] psmBest = confidenceMode == ConfidenceMode.MIXMAX
+		int[] psmBest = confidenceMode == ConfidenceMode.MIXMAX || alreadyCompetedInput
 			? sortedIndicesByScore(scores)
 			: deduplicateBySpectrum(dataset, scores);
 		int[] peptideBest = deduplicateByPeptide(dataset, psmBest, scores);

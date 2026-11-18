@@ -3,7 +3,9 @@ package org.searlelab.javapot.pipeline;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.searlelab.javapot.testutil.TestCompat.writeString;
 
 import java.io.IOException;
@@ -99,6 +101,31 @@ class JavaPotApiTest {
 		assertAnyTarget(result.peptides());
 		assertFiniteConfidence(result.peptides());
 		assertFiniteConfidence(result.psms());
+	}
+
+	@Test
+	void alreadyCompetedInputRetainsCoisolatesAndRepeatsExactly() throws Exception {
+		Path pin = writeSyntheticSeparateSearchPin(tempDir.resolve("competed.pin"));
+		JavaPotOptions defaults = new JavaPotOptions(pin, 0.5, 0.5, 0,
+			tempDir.resolve("targets.tsv"), tempDir.resolve("decoys.tsv"), false);
+		assertFalse(defaults.alreadyCompetedInput());
+		JavaPotRunResult normal = JavaPotApi.run(defaults);
+		JavaPotOptions competed = defaults.withAlreadyCompetedInput();
+		assertTrue(competed.alreadyCompetedInput());
+		assertNotEquals(defaults, competed);
+		assertEquals(competed, competed.withAlreadyCompetedInput());
+		assertEquals(competed.hashCode(), competed.withAlreadyCompetedInput().hashCode());
+		assertFalse(defaults.alreadyCompetedInput());
+		JavaPotRunResult retained = JavaPotApi.run(competed);
+		assertEquals(12, normal.psms().size());
+		assertEquals(36, retained.psms().size());
+		assertEquals(36, retained.peptides().size());
+		JavaPotRunResult repeated = JavaPotApi.run(competed);
+		assertEquals(retained.psms(), repeated.psms());
+		assertEquals(retained.peptides(), repeated.peptides());
+		JavaPotOptions mixmax = new JavaPotOptions(pin, 0.5, 0.5, 0,
+			tempDir.resolve("mix-targets.tsv"), tempDir.resolve("mix-decoys.tsv"), true);
+		assertThrows(IllegalArgumentException.class, mixmax::withAlreadyCompetedInput);
 	}
 
 	private static void assertAnyDecoy(Iterable<JavaPotPeptide> rows) {
